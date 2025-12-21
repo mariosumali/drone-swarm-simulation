@@ -492,17 +492,44 @@ export function Playground({
                             const hue = (idx * 137.5) % 360; // Golden angle for color distribution
                             const pathColor = `hsl(${hue}, 70%, 60%)`;
 
-                            // Get all state positions for this item
-                            const pathPoints = states
-                                .filter(state => item.activeStates?.includes(state.id))
-                                .map(state => item.statePositions?.[state.id])
-                                .filter(pos => pos);
+                            // Get active states for this item in order
+                            const activeStates = states.filter(state => item.activeStates?.includes(state.id));
 
-                            if (pathPoints.length < 2) return null;
+                            if (activeStates.length < 2) return null;
+
+                            // Build path segments, using custom paths when available
+                            const pathSegments = [];
+                            for (let i = 0; i < activeStates.length - 1; i++) {
+                                const fromState = activeStates[i];
+                                const toState = activeStates[i + 1];
+                                const pathKey = `${fromState.id}_to_${toState.id}`;
+                                const customPath = item.customTransitionPaths?.[pathKey];
+
+                                if (customPath && customPath.length > 1) {
+                                    // Use custom path points
+                                    pathSegments.push(...customPath.map((p, j) => ({
+                                        x: p.x,
+                                        y: p.y,
+                                        isFirst: i === 0 && j === 0
+                                    })));
+                                } else {
+                                    // Use straight line between states
+                                    const fromPos = item.statePositions?.[fromState.id];
+                                    const toPos = item.statePositions?.[toState.id];
+                                    if (fromPos && toPos) {
+                                        if (i === 0) {
+                                            pathSegments.push({ x: fromPos.x, y: fromPos.y, isFirst: true });
+                                        }
+                                        pathSegments.push({ x: toPos.x, y: toPos.y, isFirst: false });
+                                    }
+                                }
+                            }
+
+                            if (pathSegments.length < 2) return null;
 
                             // Create SVG path
-                            const pathData = pathPoints.map((pos, i) =>
-                                `${i === 0 ? 'M' : 'L'} ${pos.x} ${pos.y}`
+                            const pathData = pathSegments.map((p, i) =>
+                                `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
                             ).join(' ');
 
                             return (
