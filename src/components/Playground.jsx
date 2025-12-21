@@ -149,9 +149,21 @@ export function Playground({
         let newSelection = new Set(selectedIds);
         if (!newSelection.has(item.id)) {
             if (!e.shiftKey) {
-                newSelection = new Set([item.id]);
+                // If item is in a group, select all group members
+                if (item.groupId) {
+                    const groupMembers = items.filter(i => i.groupId === item.groupId).map(i => i.id);
+                    newSelection = new Set(groupMembers);
+                } else {
+                    newSelection = new Set([item.id]);
+                }
             } else {
-                newSelection.add(item.id);
+                // Shift+click: add to selection (including group members if applicable)
+                if (item.groupId) {
+                    const groupMembers = items.filter(i => i.groupId === item.groupId).map(i => i.id);
+                    groupMembers.forEach(id => newSelection.add(id));
+                } else {
+                    newSelection.add(item.id);
+                }
             }
             onSelectionChange(newSelection);
         }
@@ -690,6 +702,91 @@ export function Playground({
                             </div>
                         );
                     })}
+
+                {/* Multi-Selection Bounding Box */}
+                {selectedIds.size > 1 && (() => {
+                    const selectedItems = visibleItems.filter(item => selectedIds.has(item.id));
+                    if (selectedItems.length < 2) return null;
+
+                    // Calculate bounding box
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                    selectedItems.forEach(item => {
+                        const pos = getItemPosition(item);
+                        const w = item.w || (item.radius ? item.radius * 2 : 100);
+                        const h = item.h || (item.radius ? item.radius * 2 : 100);
+                        minX = Math.min(minX, pos.x - w / 2);
+                        minY = Math.min(minY, pos.y - h / 2);
+                        maxX = Math.max(maxX, pos.x + w / 2);
+                        maxY = Math.max(maxY, pos.y + h / 2);
+                    });
+
+                    const boxWidth = maxX - minX;
+                    const boxHeight = maxY - minY;
+                    const centerX = (minX + maxX) / 2;
+                    const centerY = (minY + maxY) / 2;
+
+                    return (
+                        <div style={{
+                            position: 'absolute',
+                            left: minX,
+                            top: minY,
+                            width: boxWidth,
+                            height: boxHeight,
+                            border: '2px dashed var(--accent-color)',
+                            backgroundColor: 'rgba(99, 102, 241, 0.05)',
+                            pointerEvents: 'none',
+                            zIndex: 99
+                        }}>
+                            {/* Delete all selected */}
+                            <div
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    selectedIds.forEach(id => {
+                                        if (onDeleteItem) onDeleteItem(id);
+                                    });
+                                }}
+                                style={{
+                                    position: 'absolute',
+                                    top: '-12px',
+                                    left: '-12px',
+                                    width: '24px',
+                                    height: '24px',
+                                    borderRadius: '50%',
+                                    background: '#ef4444',
+                                    border: '2px solid white',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                    fontSize: '14px',
+                                    color: 'white',
+                                    fontWeight: 'bold',
+                                    pointerEvents: 'auto',
+                                    zIndex: 101
+                                }}
+                                title={`Delete ${selectedIds.size} items`}
+                            >
+                                ✕
+                            </div>
+                            {/* Selection count badge */}
+                            <div style={{
+                                position: 'absolute',
+                                top: '-12px',
+                                right: '-12px',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                background: 'var(--accent-color)',
+                                color: 'white',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                pointerEvents: 'none'
+                            }}>
+                                {selectedIds.size} selected
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {activeDrag?.type === 'box' && (
                     <div style={{

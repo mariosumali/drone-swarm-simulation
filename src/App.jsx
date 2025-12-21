@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Undo, Redo, Sun, Moon, Save, FolderOpen, Settings, X } from 'lucide-react';
+import { Undo, Redo, Sun, Moon, Save, FolderOpen, Settings, X, Video, Group } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
 import { Playground } from './components/Playground';
@@ -64,6 +64,35 @@ function App() {
         localStorage.setItem('simulationSettings', JSON.stringify(settings));
     }, [settings]);
 
+    // Groups state
+    const [groups, setGroups] = useState([]);
+
+    // Group selected items
+    const groupSelected = () => {
+        if (selectedIds.size < 2) return;
+        const groupId = uuidv4();
+        const memberIds = Array.from(selectedIds);
+        setGroups(prev => [...prev, { id: groupId, members: memberIds, name: `Group ${prev.length + 1}` }]);
+        setItems(prev => prev.map(item =>
+            memberIds.includes(item.id) ? { ...item, groupId } : item
+        ));
+    };
+
+    // Ungroup selected items
+    const ungroupSelected = () => {
+        const selectedItem = items.find(item => selectedIds.has(item.id));
+        if (!selectedItem?.groupId) return;
+        const groupId = selectedItem.groupId;
+        setGroups(prev => prev.filter(g => g.id !== groupId));
+        setItems(prev => prev.map(item =>
+            item.groupId === groupId ? { ...item, groupId: undefined } : item
+        ));
+    };
+
+    // Check if selection contains grouped items
+    const hasGroupedItems = () => {
+        return items.some(item => selectedIds.has(item.id) && item.groupId);
+    };
 
     const addItem = (type, x, y) => {
         if (type === 'custom') {
@@ -353,35 +382,63 @@ function App() {
         setSelectedIds(new Set());
     };
 
-    // History management
-    const saveHistory = () => {
-        const snapshot = JSON.parse(JSON.stringify(items));
+    // History management - save complete snapshots
+    const isUndoingRef = React.useRef(false);
+
+    const saveHistory = React.useCallback(() => {
+        if (isUndoingRef.current) return;
+        const snapshot = {
+            items: JSON.parse(JSON.stringify(items)),
+            states: JSON.parse(JSON.stringify(states)),
+            currentStateId
+        };
         const newHistory = history.slice(0, historyIndex + 1);
         newHistory.push(snapshot);
+        // Limit history to 50 entries
+        if (newHistory.length > 50) newHistory.shift();
         setHistory(newHistory);
         setHistoryIndex(newHistory.length - 1);
-    };
+    }, [items, states, currentStateId, history, historyIndex]);
 
     const undo = () => {
         if (historyIndex > 0) {
+            isUndoingRef.current = true;
+            const snapshot = history[historyIndex - 1];
+            setItems(JSON.parse(JSON.stringify(snapshot.items)));
+            setStates(JSON.parse(JSON.stringify(snapshot.states)));
+            setCurrentStateId(snapshot.currentStateId);
             setHistoryIndex(historyIndex - 1);
-            setItems(JSON.parse(JSON.stringify(history[historyIndex - 1])));
+            setTimeout(() => { isUndoingRef.current = false; }, 0);
         }
     };
 
     const redo = () => {
         if (historyIndex < history.length - 1) {
+            isUndoingRef.current = true;
+            const snapshot = history[historyIndex + 1];
+            setItems(JSON.parse(JSON.stringify(snapshot.items)));
+            setStates(JSON.parse(JSON.stringify(snapshot.states)));
+            setCurrentStateId(snapshot.currentStateId);
             setHistoryIndex(historyIndex + 1);
-            setItems(JSON.parse(JSON.stringify(history[historyIndex + 1])));
+            setTimeout(() => { isUndoingRef.current = false; }, 0);
         }
     };
 
-    // Save history when items change
+    // Save history when meaningful changes happen (debounced)
+    const lastSnapshotRef = React.useRef('');
     React.useEffect(() => {
-        if (items.length > 0 || history.length === 0) {
-            saveHistory();
+        if (isUndoingRef.current) return;
+        const currentSnapshot = JSON.stringify({ items, states, currentStateId });
+        if (currentSnapshot !== lastSnapshotRef.current && items.length >= 0) {
+            const timer = setTimeout(() => {
+                if (currentSnapshot !== lastSnapshotRef.current) {
+                    lastSnapshotRef.current = currentSnapshot;
+                    saveHistory();
+                }
+            }, 300);
+            return () => clearTimeout(timer);
         }
-    }, [items.length, items.map(i => i.id).join(',')]);
+    }, [items, states, currentStateId]);
 
     // State management functions
     const addState = () => {
@@ -949,6 +1006,52 @@ function App() {
                         <FolderOpen size={16} />
                     </button>
                 </div>
+
+                {/* Group/Ungroup buttons */}
+                {selectedIds.size >= 2 && (
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                            onClick={groupSelected}
+                            style={{
+                                padding: '0.5rem 0.75rem',
+                                background: 'var(--accent-color)',
+                                border: 'none',
+                                borderRadius: '6px',
+                                color: 'white',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                fontSize: '0.75rem',
+                                fontWeight: 500
+                            }}
+                            title="Group Selected Items"
+                        >
+                            <Group size={14} /> Group
+                        </button>
+                    </div>
+                )}
+                {hasGroupedItems() && (
+                    <button
+                        onClick={ungroupSelected}
+                        style={{
+                            padding: '0.5rem 0.75rem',
+                            background: 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            color: 'var(--text-primary)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 500
+                        }}
+                        title="Ungroup Selected Items"
+                    >
+                        Ungroup
+                    </button>
+                )}
 
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
