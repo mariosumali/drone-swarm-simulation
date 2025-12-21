@@ -8,7 +8,7 @@ export function Playground({
     items, onAddItem, onUpdateItem, onDeleteItem, selectedIds, onSelectionChange,
     viewport, onViewportChange,
     drawingMode, onDrawingModeChange, onFinishDrawing,
-    currentStateId, isSimulating, animationProgress, states, showPathTracking,
+    currentStateId, isSimulating, animationProgress, states, showPathTracking, showDronePaths,
     pathDrawingMode, onPathDrawingModeChange, onFinishPathDrawing,
     settings = {}
 }) {
@@ -594,6 +594,75 @@ export function Playground({
                                     strokeDasharray="5,5"
                                     fill="none"
                                     opacity="0.6"
+                                />
+                            );
+                        })}
+                    </svg>
+                )}
+
+                {/* Drone Path Tracking Lines */}
+                {showDronePaths && states && states.length > 1 && (
+                    <svg style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        pointerEvents: 'none',
+                        overflow: 'visible'
+                    }}>
+                        {visibleItems.filter(item => item.type === 'drone').map((item) => {
+                            const droneColor = item.droneType === 'air' ? '#60a5fa' : '#8b5cf6';
+
+                            // Get active states for this drone in order
+                            const activeStates = states.filter(state => item.activeStates?.includes(state.id));
+
+                            if (activeStates.length < 2) return null;
+
+                            // Build path segments from customPath in statePositions
+                            const pathSegments = [];
+                            for (let i = 0; i < activeStates.length - 1; i++) {
+                                const fromState = activeStates[i];
+                                const toState = activeStates[i + 1];
+                                const toStatePos = item.statePositions?.[toState.id];
+                                const customPath = toStatePos?.customPath;
+
+                                if (customPath && customPath.length > 1) {
+                                    // Use custom path points
+                                    pathSegments.push(...customPath.map((p, j) => ({
+                                        x: p.x,
+                                        y: p.y,
+                                        isFirst: i === 0 && j === 0
+                                    })));
+                                } else {
+                                    // Use straight line between states
+                                    const fromPos = item.statePositions?.[fromState.id];
+                                    const toPos = item.statePositions?.[toState.id];
+                                    if (fromPos && toPos) {
+                                        if (i === 0) {
+                                            pathSegments.push({ x: fromPos.x, y: fromPos.y, isFirst: true });
+                                        }
+                                        pathSegments.push({ x: toPos.x, y: toPos.y, isFirst: false });
+                                    }
+                                }
+                            }
+
+                            if (pathSegments.length < 2) return null;
+
+                            // Create SVG path
+                            const pathData = pathSegments.map((p, i) =>
+                                `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+                            ).join(' ');
+
+                            return (
+                                <path
+                                    key={item.id}
+                                    d={pathData}
+                                    stroke={droneColor}
+                                    strokeWidth="2"
+                                    strokeDasharray="3,3"
+                                    fill="none"
+                                    opacity="0.7"
                                 />
                             );
                         })}

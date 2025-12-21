@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Plane, Square, Circle, Pencil, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plane, Square, Circle, Pencil, Eye, EyeOff, Trash2, Truck } from 'lucide-react';
 
-export function EntityList({ items, selectedIds, onSelect, onUpdateItem, onDelete, currentStateId, showPathTracking, onTogglePathTracking }) {
+export function EntityList({ items, selectedIds, onSelect, onUpdateItem, onDelete, currentStateId, showPathTracking, onTogglePathTracking, showDronePaths, onToggleDronePaths }) {
     const [isExpanded, setIsExpanded] = useState(true);
     const [editingId, setEditingId] = useState(null);
     const [editName, setEditName] = useState('');
@@ -141,58 +141,118 @@ export function EntityList({ items, selectedIds, onSelect, onUpdateItem, onDelet
                     </button>
                 </div>
 
-                {/* Path Tracking Toggle */}
-                <button
-                    onClick={onTogglePathTracking}
-                    style={{
-                        padding: '0.5rem',
-                        background: showPathTracking ? 'var(--accent-color)' : 'var(--bg-tertiary)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        color: showPathTracking ? 'white' : 'var(--text-primary)',
-                        fontSize: '0.75rem',
-                        fontWeight: 500,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        justifyContent: 'center'
-                    }}
-                >
-                    <Eye size={14} />
-                    {showPathTracking ? 'Hide' : 'Show'} Path Tracking
-                </button>
-
-                {/* Path Color Legend */}
-                {showPathTracking && visibleItems.filter(item => item.type !== 'drone').length > 0 && (
-                    <div style={{
-                        padding: '0.5rem',
-                        background: 'var(--bg-primary)',
-                        borderRadius: '6px',
-                        fontSize: '0.7rem'
-                    }}>
-                        <div style={{ fontWeight: 600, marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>
-                            Path Colors:
-                        </div>
-                        {visibleItems.filter(item => item.type !== 'drone').map((item, idx) => {
-                            const hue = (idx * 137.5) % 360;
-                            const pathColor = `hsl(${hue}, 70%, 60%)`;
-                            return (
-                                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
-                                    <div style={{
-                                        width: '20px',
-                                        height: '2px',
-                                        background: pathColor,
-                                        borderRadius: '1px'
-                                    }} />
-                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.7rem' }}>
-                                        {item.customId || `${item.type}_${item.id.slice(0, 4)}`}
-                                    </span>
-                                </div>
-                            );
-                        })}
+                {/* Objects Path Tracking */}
+                <div style={{
+                    padding: '0.5rem',
+                    background: 'var(--bg-primary)',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            Objects ({visibleItems.filter(i => i.type !== 'drone').length})
+                        </span>
+                        <button
+                            onClick={onTogglePathTracking}
+                            style={{
+                                padding: '0.25rem 0.5rem',
+                                background: showPathTracking ? 'var(--accent-color)' : 'var(--bg-tertiary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                color: showPathTracking ? 'white' : 'var(--text-secondary)',
+                                fontSize: '0.65rem',
+                                fontWeight: 500,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                            }}
+                        >
+                            <Eye size={10} />
+                            {showPathTracking ? 'Hide Paths' : 'Show Paths'}
+                        </button>
                     </div>
-                )}
+                    {/* Object Path Legend */}
+                    {showPathTracking && visibleItems.filter(item => item.type !== 'drone').length > 0 && (
+                        <div style={{ fontSize: '0.65rem' }}>
+                            {visibleItems.filter(item => item.type !== 'drone').map((item, idx) => {
+                                const hue = (idx * 137.5) % 360;
+                                const pathColor = `hsl(${hue}, 70%, 60%)`;
+                                return (
+                                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                        <div style={{
+                                            width: '16px',
+                                            height: '2px',
+                                            background: pathColor,
+                                            borderRadius: '1px'
+                                        }} />
+                                        <span style={{ color: 'var(--text-primary)' }}>
+                                            {item.customId || `${item.type}_${item.id.slice(0, 4)}`}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* Drones Path Tracking */}
+                <div style={{
+                    padding: '0.5rem',
+                    background: 'var(--bg-primary)',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            Drones ({visibleItems.filter(i => i.type === 'drone').length})
+                        </span>
+                        <button
+                            onClick={onToggleDronePaths}
+                            style={{
+                                padding: '0.25rem 0.5rem',
+                                background: showDronePaths ? '#60a5fa' : 'var(--bg-tertiary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                color: showDronePaths ? 'white' : 'var(--text-secondary)',
+                                fontSize: '0.65rem',
+                                fontWeight: 500,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                            }}
+                        >
+                            <Eye size={10} />
+                            {showDronePaths ? 'Hide Paths' : 'Show Paths'}
+                        </button>
+                    </div>
+                    {/* Drone Path Legend */}
+                    {showDronePaths && visibleItems.filter(item => item.type === 'drone').length > 0 && (
+                        <div style={{ fontSize: '0.65rem' }}>
+                            {visibleItems.filter(item => item.type === 'drone').map((item, idx) => {
+                                const droneColor = item.droneType === 'air' ? '#60a5fa' : '#8b5cf6';
+                                return (
+                                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                        <div style={{
+                                            width: '16px',
+                                            height: '2px',
+                                            background: droneColor,
+                                            borderRadius: '1px'
+                                        }} />
+                                        <span style={{ color: 'var(--text-primary)' }}>
+                                            {item.droneType === 'air' ? '✈️' : '🚛'} {item.customId || `drone_${item.id.slice(0, 4)}`}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Entity List */}

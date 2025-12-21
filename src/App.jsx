@@ -29,6 +29,7 @@ function App() {
     const [animationProgress, setAnimationProgress] = useState(0);
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
     const [showPathTracking, setShowPathTracking] = useState(true);
+    const [showDronePaths, setShowDronePaths] = useState(true);
     const [clipboard, setClipboard] = useState([]);
     const [theme, setTheme] = useState(() => {
         const saved = localStorage.getItem('theme');
@@ -261,10 +262,26 @@ function App() {
         if (!pathDrawingMode) return;
 
         const { objectId, fromStateId, toStateId, points } = pathDrawingMode;
-        const pathKey = `${fromStateId}_to_${toStateId}`;
 
         setItems(prev => prev.map(item => {
             if (item.id === objectId) {
+                // Check if this is a drone (uses statePositions.customPath format)
+                if (item.type === 'drone' && item.statePositions?.[toStateId]) {
+                    return {
+                        ...item,
+                        statePositions: {
+                            ...item.statePositions,
+                            [toStateId]: {
+                                ...item.statePositions[toStateId],
+                                customPath: points,
+                                pathType: 'draw'
+                            }
+                        }
+                    };
+                }
+
+                // Regular objects use customTransitionPaths format
+                const pathKey = `${fromStateId}_to_${toStateId}`;
                 return {
                     ...item,
                     customTransitionPaths: {
@@ -305,10 +322,25 @@ function App() {
             return;
         }
 
-        const pathKey = `${fromStateId}_to_${toStateId}`;
-
         setItems(prev => prev.map(item => {
             if (item.id === objectId) {
+                // Check if this is a drone (uses statePositions.customPath format)
+                if (item.type === 'drone' && item.statePositions?.[toStateId]) {
+                    return {
+                        ...item,
+                        statePositions: {
+                            ...item.statePositions,
+                            [toStateId]: {
+                                ...item.statePositions[toStateId],
+                                customPath: path,
+                                pathType: 'auto'
+                            }
+                        }
+                    };
+                }
+
+                // Regular objects use customTransitionPaths format
+                const pathKey = `${fromStateId}_to_${toStateId}`;
                 return {
                     ...item,
                     customTransitionPaths: {
@@ -710,10 +742,10 @@ function App() {
             _checkStateId: currentStateId
         }));
 
-        // Update object and drones with new state positions and paths
+        // Update ALL items with new state positions (copy entire state)
         setItems(prev => prev.map(item => {
+            // Transport object - mark as transport mode
             if (item.id === objectId) {
-                // Copy object position to new state
                 const newStatePositions = { ...item.statePositions };
                 newStatePositions[newStateId] = { ...item.statePositions[currentStateId] };
 
@@ -727,6 +759,7 @@ function App() {
                 };
             }
 
+            // Assigned drones - set formation positions with auto-paths
             const droneIndex = sortedDrones.findIndex(d => d.drone.id === item.id);
             if (droneIndex !== -1) {
                 const droneCurrentPos = item.statePositions[currentStateId];
@@ -735,12 +768,9 @@ function App() {
                     y: objectPos.y + formationOffsets[droneIndex].y
                 };
 
-                // Generate auto-path from current position to target
                 const autoPath = findPath(droneCurrentPos, targetPos, obstacles, currentStateId);
 
                 const newStatePositions = { ...item.statePositions };
-                // Keep current state position unchanged
-                // Add formation position in new state with auto-path
                 newStatePositions[newStateId] = {
                     x: targetPos.x,
                     y: targetPos.y,
@@ -760,6 +790,18 @@ function App() {
                     relativeOffset: formationOffsets[droneIndex],
                     statePositions: newStatePositions,
                     activeStates
+                };
+            }
+
+            // All other items - copy their current state position to new state
+            if (item.statePositions?.[currentStateId]) {
+                const newStatePositions = { ...item.statePositions };
+                newStatePositions[newStateId] = { ...item.statePositions[currentStateId] };
+
+                return {
+                    ...item,
+                    statePositions: newStatePositions,
+                    activeStates: [...(item.activeStates || []), newStateId].filter((v, i, a) => a.indexOf(v) === i)
                 };
             }
 
@@ -823,10 +865,10 @@ function App() {
             _checkStateId: currentStateId
         }));
 
-        // Update object and drones with new state positions and paths
+        // Update ALL items with new state positions (copy entire state)
         setItems(prev => prev.map(item => {
+            // Transport object - mark as transport mode
             if (item.id === objectId) {
-                // Copy object position to new state
                 const newStatePositions = { ...item.statePositions };
                 newStatePositions[newStateId] = { ...item.statePositions[currentStateId] };
 
@@ -840,6 +882,7 @@ function App() {
                 };
             }
 
+            // Assigned drones - set formation positions with auto-paths
             const droneIndex = sortedDrones.findIndex(d => d.drone.id === item.id);
             if (droneIndex !== -1) {
                 const droneCurrentPos = item.statePositions[currentStateId];
@@ -848,12 +891,9 @@ function App() {
                     y: objectPos.y + formationOffsets[droneIndex].y
                 };
 
-                // Generate auto-path from current position to target
                 const autoPath = findPath(droneCurrentPos, targetPos, obstacles, currentStateId);
 
                 const newStatePositions = { ...item.statePositions };
-                // Keep current state position unchanged
-                // Add formation position in new state with auto-path
                 newStatePositions[newStateId] = {
                     x: targetPos.x,
                     y: targetPos.y,
@@ -873,6 +913,18 @@ function App() {
                     relativeOffset: formationOffsets[droneIndex],
                     statePositions: newStatePositions,
                     activeStates
+                };
+            }
+
+            // All other items - copy their current state position to new state
+            if (item.statePositions?.[currentStateId]) {
+                const newStatePositions = { ...item.statePositions };
+                newStatePositions[newStateId] = { ...item.statePositions[currentStateId] };
+
+                return {
+                    ...item,
+                    statePositions: newStatePositions,
+                    activeStates: [...(item.activeStates || []), newStateId].filter((v, i, a) => a.indexOf(v) === i)
                 };
             }
 
@@ -1379,6 +1431,7 @@ function App() {
                             animationProgress={animationProgress}
                             states={states}
                             showPathTracking={showPathTracking}
+                            showDronePaths={showDronePaths}
                             pathDrawingMode={pathDrawingMode}
                             onPathDrawingModeChange={setPathDrawingMode}
                             onFinishPathDrawing={finishPathDrawing}
@@ -1400,6 +1453,8 @@ function App() {
                             currentStateId={currentStateId}
                             showPathTracking={showPathTracking}
                             onTogglePathTracking={() => setShowPathTracking(!showPathTracking)}
+                            showDronePaths={showDronePaths}
+                            onToggleDronePaths={() => setShowDronePaths(!showDronePaths)}
                         />
                     </div>
                     <Timeline
