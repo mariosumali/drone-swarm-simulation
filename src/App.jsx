@@ -114,14 +114,18 @@ function App() {
 
         if (!fromPos || !toPos) return;
 
+        // Check if path already exists
+        const pathKey = `${fromStateId}_to_${toStateId}`;
+        const existingPath = object.customTransitionPaths?.[pathKey];
+
         setPathDrawingMode({
             objectId,
             fromStateId,
             toStateId,
-            points: [fromPos], // Start with just start point
-            endPoint: toPos, // Locked end point
+            points: existingPath ? [...existingPath] : [fromPos],
+            endPoint: toPos,
             isActive: false,
-            isComplete: false
+            isComplete: !!existingPath
         });
     };
 
@@ -398,6 +402,12 @@ function App() {
 
     // Simulation functions
     const startSimulation = () => {
+        // If we're at the last state, restart from the beginning
+        const currentIndex = states.findIndex(s => s.id === currentStateId);
+        if (currentIndex === states.length - 1) {
+            setCurrentStateId(states[0].id);
+        }
+
         setIsSimulating(true);
         setAnimationProgress(0);
     };

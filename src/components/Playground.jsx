@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Drone } from './Drone';
 import { SimulationObject } from './SimulationObject';
 import { ZoomControls } from './ZoomControls';
+import { interpolateAlongPath } from '../utils/pathInterpolation';
 
 export function Playground({
     items, onAddItem, onUpdateItem, selectedIds, onSelectionChange,
@@ -70,6 +71,15 @@ export function Playground({
 
         if (!currentPos || !nextPos) {
             return currentPos || nextPos || { x: 0, y: 0, rotation: 0 };
+        }
+
+        // Check for custom transition path
+        const pathKey = `${states[currentStateIndex].id}_to_${states[nextStateIndex].id}`;
+        const customPath = item.customTransitionPaths?.[pathKey];
+
+        if (customPath && customPath.length > 1) {
+            // Use custom path interpolation
+            return interpolateAlongPath(customPath, animationProgress);
         }
 
         return {
@@ -262,9 +272,25 @@ export function Playground({
         }
 
         // Path drawing - record points as mouse moves
-        if (activeDrag?.type === 'path' && pathDrawingMode) {
+        if (activeDrag?.type === 'path' && pathDrawingMode && pathDrawingMode.isActive) {
             const world = screenToWorld(e.clientX, e.clientY);
             const lastPoint = pathDrawingMode.points[pathDrawingMode.points.length - 1];
+            const endPoint = pathDrawingMode.endPoint;
+
+            // Check for snap to end
+            if (endPoint) {
+                const distToEnd = Math.hypot(world.x - endPoint.x, world.y - endPoint.y);
+                if (distToEnd < 30) {
+                    onPathDrawingModeChange({
+                        ...pathDrawingMode,
+                        points: [...pathDrawingMode.points, endPoint],
+                        isActive: false,
+                        isComplete: true
+                    });
+                    setActiveDrag(null);
+                    return;
+                }
+            }
 
             // Only add point if moved enough distance (smoothing)
             if (!lastPoint || Math.hypot(world.x - lastPoint.x, world.y - lastPoint.y) > 5) {
@@ -508,28 +534,70 @@ export function Playground({
                 )}
 
                 {/* Path Drawing Preview */}
-                {pathDrawingMode && pathDrawingMode.points.length > 1 && (
+                {/* Path Drawing Preview */}
+                {pathDrawingMode && (
                     <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 200 }}>
-                        <path
-                            d={pathDrawingMode.points.map((p, i) =>
-                                `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
-                            ).join(' ')}
-                            fill="none"
-                            stroke="#f59e0b"
-                            strokeWidth="3"
-                            opacity="0.9"
+                        {/* Start Point (Green) */}
+                        <circle
+                            cx={pathDrawingMode.points[0].x}
+                            cy={pathDrawingMode.points[0].y}
+                            r="15"
+                            fill="#10b981"
+                            opacity="0.3"
                         />
-                        {pathDrawingMode.points.map((p, i) => (
-                            <circle
-                                key={i}
-                                cx={p.x}
-                                cy={p.y}
-                                r="3"
-                                fill={i === 0 || i === pathDrawingMode.points.length - 1 ? "#10b981" : "#f59e0b"}
-                                stroke="white"
-                                strokeWidth="1"
-                            />
-                        ))}
+                        <circle
+                            cx={pathDrawingMode.points[0].x}
+                            cy={pathDrawingMode.points[0].y}
+                            r="6"
+                            fill="#10b981"
+                            stroke="white"
+                            strokeWidth="2"
+                        />
+
+                        {/* End Point (Red) */}
+                        {pathDrawingMode.endPoint && (
+                            <>
+                                <circle
+                                    cx={pathDrawingMode.endPoint.x}
+                                    cy={pathDrawingMode.endPoint.y}
+                                    r="15"
+                                    fill="#ef4444"
+                                    opacity="0.3"
+                                />
+                                <circle
+                                    cx={pathDrawingMode.endPoint.x}
+                                    cy={pathDrawingMode.endPoint.y}
+                                    r="6"
+                                    fill="#ef4444"
+                                    stroke="white"
+                                    strokeWidth="2"
+                                />
+                            </>
+                        )}
+
+                        {/* Drawn Path */}
+                        {pathDrawingMode.points.length > 1 && (
+                            <>
+                                <path
+                                    d={pathDrawingMode.points.map((p, i) =>
+                                        `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+                                    ).join(' ')}
+                                    fill="none"
+                                    stroke="#f59e0b"
+                                    strokeWidth="3"
+                                    opacity="0.9"
+                                />
+                                {pathDrawingMode.points.slice(1).map((p, i) => (
+                                    <circle
+                                        key={i}
+                                        cx={p.x}
+                                        cy={p.y}
+                                        r="2"
+                                        fill="#f59e0b"
+                                    />
+                                ))}
+                            </>
+                        )}
                     </svg>
                 )}
             </div>
