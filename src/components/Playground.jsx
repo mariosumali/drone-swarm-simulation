@@ -46,14 +46,14 @@ export function Playground({
         const nextPos = item.statePositions[states[nextStateIndex].id];
 
         if (!currentPos || !nextPos) {
-            return currentPos || nextPos || { x: 0, y: 0, rotation: 0 };
+            return currentPos || nextPos || { x: 0, y: 0, z: 0, rotation: 0 };
         }
 
-        // Check for custom path in the next state's position (new format for drone transport)
         if (nextPos.customPath && nextPos.customPath.length > 1) {
             const result = interpolateAlongPath(nextPos.customPath, animationProgress, settings.easing);
             return {
                 ...result,
+                z: interpolate(currentPos.z || 0, nextPos.z || 0, animationProgress),
                 rotation: interpolate(currentPos.rotation || 0, nextPos.rotation || 0, animationProgress)
             };
         }
@@ -61,7 +61,7 @@ export function Playground({
         // Check for custom transition path (old format)
         const nextState = states[nextStateIndex];
         // Safety check if nextState is undefined (e.g. if states array changed)
-        if (!nextState) return currentPos || { x: 0, y: 0, rotation: 0 };
+        if (!nextState) return currentPos || { x: 0, y: 0, z: 0, rotation: 0 };
 
         const pathKey = `${states[currentStateIndex].id}_to_${nextState.id}`;
         const customPath = item.customTransitionPaths?.[pathKey];
@@ -111,9 +111,13 @@ export function Playground({
                     const rotatedX = offset.x * Math.cos(angleRad) - offset.y * Math.sin(angleRad);
                     const rotatedY = offset.x * Math.sin(angleRad) + offset.y * Math.cos(angleRad);
 
+                    // Inherit z from drone's own state position, not parent
+                    const droneZ = item.statePositions?.[currentStateId]?.z || 0;
+
                     return {
                         x: parentPos.x + rotatedX,
                         y: parentPos.y + rotatedY,
+                        z: droneZ,
                         rotation: 0
                     };
                 }
@@ -127,6 +131,7 @@ export function Playground({
         return {
             x: interpolate(currentPos.x, nextPos.x, navProgress),
             y: interpolate(currentPos.y, nextPos.y, navProgress),
+            z: interpolate(currentPos.z || 0, nextPos.z || 0, navProgress),
             rotation: interpolate(currentPos.rotation || 0, nextPos.rotation || 0, navProgress)
         };
     };
@@ -566,677 +571,689 @@ export function Playground({
                 ref={contentRef}
                 style={{
                     position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
+                    // Large size to cover all visible areas including negative coordinates
+                    top: -5000,
+                    left: -5000,
+                    width: 10000,
+                    height: 10000,
                     transform: `translate(${viewport.offsetX}px, ${viewport.offsetY}px) scale(${viewport.zoom})`,
-                    transformOrigin: '0 0',
+                    transformOrigin: '5000px 5000px',
                     backgroundImage: settings.showGrid !== false ? 'radial-gradient(var(--grid-color, rgba(255, 255, 255, 0.15)) 1px, transparent 1px)' : 'none',
                     backgroundSize: `${settings.gridSize || 20}px ${settings.gridSize || 20}px`,
-                    backgroundPosition: '0 0'
+                    // Grid dots appear at world coordinates 0, gridSize, gridSize*2, etc.
+                    backgroundPosition: '5000px 5000px'
                 }}
             >
-                {/* Force Vectors Visualization */}
-                {showForceVectors && (
-                    <svg style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        pointerEvents: 'none',
-                        overflow: 'visible',
-                        opacity: 0.7,
-                        zIndex: 10
-                    }}>
-                        {visibleItems.filter(item => item.type === 'drone').map(drone => {
-                            const pos = getItemPosition(drone);
-
-                            // 1. Attraction Force (Green) - towards target
-                            let attrVector = { x: 0, y: 0 };
-                            let targetPos = null;
-
-                            if (isSimulating && states.length > 1) {
-                                const currentIndex = states.findIndex(s => s.id === currentStateId);
-                                const nextIndex = (currentIndex + 1) % states.length; // Loop or clamp handled in loop
-                                const nextStateId = states[nextIndex]?.id;
-                                if (nextStateId && drone.statePositions?.[nextStateId]) {
-                                    targetPos = drone.statePositions[nextStateId];
-                                }
-                            } else if (drone.lockedToObject) {
-                                // If locked to object, target is the formation slot
-                                const parent = items.find(i => i.id === drone.lockedToObject);
-                                if (parent) {
-                                    const parentPos = getItemPosition(parent);
-                                    if (drone.relativeOffset) {
-                                        const angle = (parentPos.rotation || 0) * Math.PI / 180;
-                                        const off = drone.relativeOffset;
-                                        targetPos = {
-                                            x: parentPos.x + (off.x * Math.cos(angle) - off.y * Math.sin(angle)),
-                                            y: parentPos.y + (off.x * Math.sin(angle) + off.y * Math.cos(angle))
-                                        };
-                                    }
-                                }
-                            }
-
-                            if (targetPos) {
-                                const dx = targetPos.x - pos.x;
-                                const dy = targetPos.y - pos.y;
-                                const dist = Math.hypot(dx, dy);
-                                if (dist > 1) {
-                                    // Normalize and scale for visualization (max 50px length)
-                                    const len = Math.min(dist, 50);
-                                    attrVector = { x: (dx / dist) * len, y: (dy / dist) * len };
-                                }
-                            }
-
-                            // 2. Repulsion Force (Red) - away from obstacles
-                            let repVector = { x: 0, y: 0 };
-                            items.filter(i => i.type !== 'drone' && i.id !== drone.lockedToObject).forEach(obs => {
-                                const obsPos = getItemPosition(obs);
-                                const dx = pos.x - obsPos.x;
-                                const dy = pos.y - obsPos.y;
-                                const dist = Math.hypot(dx, dy);
-                                const safeDist = (obs.radius || Math.max(obs.w || 0, obs.h || 0) / 2) + 30; // approx radius + buffer
-
-                                if (dist < safeDist && dist > 0) {
-                                    const strength = (safeDist - dist) / safeDist; // 0 to 1
-                                    const len = strength * 50;
-                                    repVector.x += (dx / dist) * len;
-                                    repVector.y += (dy / dist) * len;
-                                }
-                            });
-
-                            // 3. Resultant (Blue)
-                            const resVector = {
-                                x: attrVector.x + repVector.x,
-                                y: attrVector.y + repVector.y
-                            };
-
-                            return (
-                                <g key={drone.id}>
-                                    {/* Attraction */}
-                                    {Math.hypot(attrVector.x, attrVector.y) > 1 && (
-                                        <line
-                                            x1={pos.x} y1={pos.y}
-                                            x2={pos.x + attrVector.x} y2={pos.y + attrVector.y}
-                                            stroke="#10b981" strokeWidth={2} strokeOpacity={0.8}
-                                        />
-                                    )}
-                                    {/* Repulsion */}
-                                    {Math.hypot(repVector.x, repVector.y) > 1 && (
-                                        <line
-                                            x1={pos.x} y1={pos.y}
-                                            x2={pos.x + repVector.x} y2={pos.y + repVector.y}
-                                            stroke="#ef4444" strokeWidth={2} strokeOpacity={0.8}
-                                        />
-                                    )}
-                                    {/* Resultant */}
-                                    {Math.hypot(resVector.x, resVector.y) > 1 && (
-                                        <line
-                                            x1={pos.x} y1={pos.y}
-                                            x2={pos.x + resVector.x} y2={pos.y + resVector.y}
-                                            stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 2"
-                                        />
-                                    )}
-                                </g>
-                            );
-                        })}
-                    </svg>
-                )}
-
-                {/* Path Tracking Lines */}
-                {showPathTracking && states && states.length > 1 && (
-                    <svg style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        pointerEvents: 'none',
-                        overflow: 'visible'
-                    }}>
-                        {visibleItems.filter(item => item.type !== 'drone').map((item, idx) => {
-                            // Generate color for this object
-                            const hue = (idx * 137.5) % 360; // Golden angle for color distribution
-                            const pathColor = `hsl(${hue}, 70%, 60%)`;
-
-                            // Get active states for this item in order
-                            const activeStates = states.filter(state => item.activeStates?.includes(state.id));
-
-                            if (activeStates.length < 2) return null;
-
-                            // Build path segments, using custom paths when available
-                            const pathSegments = [];
-                            for (let i = 0; i < activeStates.length - 1; i++) {
-                                const fromState = activeStates[i];
-                                const toState = activeStates[i + 1];
-                                const pathKey = `${fromState.id}_to_${toState.id}`;
-                                const customPath = item.customTransitionPaths?.[pathKey];
-
-                                if (customPath && customPath.length > 1) {
-                                    // Use custom path points
-                                    pathSegments.push(...customPath.map((p, j) => ({
-                                        x: p.x,
-                                        y: p.y,
-                                        isFirst: i === 0 && j === 0
-                                    })));
-                                } else {
-                                    // Use straight line between states
-                                    const fromPos = item.statePositions?.[fromState.id];
-                                    const toPos = item.statePositions?.[toState.id];
-                                    if (fromPos && toPos) {
-                                        if (i === 0) {
-                                            pathSegments.push({ x: fromPos.x, y: fromPos.y, isFirst: true });
-                                        }
-                                        pathSegments.push({ x: toPos.x, y: toPos.y, isFirst: false });
-                                    }
-                                }
-                            }
-
-                            if (pathSegments.length < 2) return null;
-
-                            // Create SVG path
-                            const pathData = pathSegments.map((p, i) =>
-                                `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
-                            ).join(' ');
-
-                            return (
-                                <path
-                                    key={item.id}
-                                    d={pathData}
-                                    stroke={pathColor}
-                                    strokeWidth="2"
-                                    strokeDasharray="5,5"
-                                    fill="none"
-                                    opacity="0.6"
-                                />
-                            );
-                        })}
-                    </svg>
-                )}
-
-                {/* Drone Path Tracking Lines */}
-                {showDronePaths && states && states.length > 1 && (
-                    <svg style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        pointerEvents: 'none',
-                        overflow: 'visible'
-                    }}>
-                        {visibleItems.filter(item => item.type === 'drone').map((item) => {
-                            const droneColor = item.droneType === 'air' ? '#60a5fa' : '#8b5cf6';
-
-                            // Get active states for this drone in order
-                            const activeStates = states.filter(state => item.activeStates?.includes(state.id));
-
-                            if (activeStates.length < 2) return null;
-
-                            // Build path segments from customPath in statePositions
-                            const pathSegments = [];
-                            for (let i = 0; i < activeStates.length - 1; i++) {
-                                const fromState = activeStates[i];
-                                const toState = activeStates[i + 1];
-                                const toStatePos = item.statePositions?.[toState.id];
-                                const customPath = toStatePos?.customPath;
-
-                                if (customPath && customPath.length > 1) {
-                                    // Use custom path points
-                                    pathSegments.push(...customPath.map((p, j) => ({
-                                        x: p.x,
-                                        y: p.y,
-                                        isFirst: i === 0 && j === 0
-                                    })));
-                                } else {
-                                    // Use straight line between states
-                                    const fromPos = item.statePositions?.[fromState.id];
-                                    const toPos = item.statePositions?.[toState.id];
-                                    if (fromPos && toPos) {
-                                        if (i === 0) {
-                                            pathSegments.push({ x: fromPos.x, y: fromPos.y, isFirst: true });
-                                        }
-                                        pathSegments.push({ x: toPos.x, y: toPos.y, isFirst: false });
-                                    }
-                                }
-                            }
-
-                            if (pathSegments.length < 2) return null;
-
-                            // Create SVG path
-                            const pathData = pathSegments.map((p, i) =>
-                                `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
-                            ).join(' ');
-
-                            // Check for collisions
-                            const collisions = [];
-
-                            // Prepare obstacles (objects that are not drones and not the locked object)
-                            const obstacles = visibleItems.filter(obj =>
-                                obj.type !== 'drone' &&
-                                obj.id !== item.lockedToObject
-                            ).map(o => {
-                                // Find state ID for position check - use current state or next state from segments
-                                // For simplicity, we check against the obstacles' position in the states traversed
-                                // Here we just check against obstacle position in the 'from' states of the segments
-                                return {
-                                    ...o,
-                                    // Hack: passing the full object allows isPointInObstacle to look up statePositions
-                                    // But we need to know WHICH state. We'll simplify: check against obstacle pos in the FROM state of segment
-                                };
-                            });
-
-                            // Check each segment against obstacles
-                            let segmentIndex = 0;
-                            for (let i = 0; i < activeStates.length - 1; i++) {
-                                const fromState = activeStates[i];
-                                // We only check collisions if we have a valid segment
-                                // pathSegments is flattened, so we need to track where we are
-                                // Simplified approach: Check every segment in the flattened list
-                                // This assumes obstacles don't move drastically between states or we check against a "representative" state
-
-                                const obsInState = obstacles.map(o => ({ ...o, _checkStateId: fromState.id }));
-
-                                // How many points in this transition?
-                                const toState = activeStates[i + 1];
-                                const customPath = item.statePositions?.[toState.id]?.customPath;
-                                const count = (customPath && customPath.length > 1) ? customPath.length : 2; // 2 for straight line
-
-                                for (let k = 0; k < count - 1; k++) {
-                                    const p1 = pathSegments[segmentIndex + k];
-                                    const p2 = pathSegments[segmentIndex + k + 1];
-                                    if (!p1 || !p2) continue;
-
-                                    obsInState.forEach(obs => {
-                                        // Get drone's altitude at this segment (interpolate between states)
-                                        const fromStatePos = item.statePositions?.[fromState.id];
-                                        const toStatePos = item.statePositions?.[toState.id];
-                                        const droneZ = Math.min(fromStatePos?.z || 0, toStatePos?.z || 0);
-
-                                        // Get obstacle height (default 100 if not specified)
-                                        const obstacleHeight = obs.height || 100;
-
-                                        // Only check collision if drone altitude is below obstacle height
-                                        // Air drones flying above obstacles won't collide
-                                        if (droneZ < obstacleHeight) {
-                                            if (lineIntersectsObstacle(p1, p2, obs, 5)) {
-                                                collisions.push({
-                                                    x: (p1.x + p2.x) / 2,
-                                                    y: (p1.y + p2.y) / 2
-                                                });
-                                            }
-                                        }
-                                    });
-                                }
-                                segmentIndex += count; // This offset might be slightly off if we push isFirst logic, but close enough for viz
-                            }
-
-                            return (
-                                <g key={item.id}>
-                                    <path
-                                        d={pathData}
-                                        stroke={droneColor}
-                                        strokeWidth="2"
-                                        strokeDasharray="3,3"
-                                        fill="none"
-                                        opacity="0.7"
-                                    />
-                                    {collisions.map((col, idx) => (
-                                        <g key={`col-${idx}`} transform={`translate(${col.x}, ${col.y})`}>
-                                            <circle r="8" fill="#ef4444" stroke="white" strokeWidth="1" />
-                                            <text
-                                                textAnchor="middle"
-                                                dy="3"
-                                                fill="white"
-                                                fontSize="10"
-                                                fontWeight="bold"
-                                                style={{ pointerEvents: 'none' }}
-                                            >!</text>
-                                        </g>
-                                    ))}
-                                </g>
-                            );
-                        })}
-                    </svg>
-                )}
-
-                {visibleItems
-                    .filter(item => !(pathDrawingMode && item.id === pathDrawingMode.objectId)) // Hide object being drawn
-                    .map(item => {
-                        const pos = getItemPosition(item);
-                        return (
-                            <div
-                                key={item.id}
-                                style={{
-                                    position: 'absolute',
-                                    left: pos.x,
-                                    top: pos.y,
-                                    transform: `translate(-50%, -50%) rotate(${pos.rotation || 0}deg) ${show3DMode ? `translateY(-${pos.z || 0}px) scale(${1 + (pos.z || 0) / 1000})` : ''}`,
-                                    zIndex: (selectedIds.has(item.id) ? 10 : 1) + Math.floor(pos.z || 0),
-                                    transition: isSimulating ? 'none' : 'transform 0.1s'
-                                }}
-                                onMouseDown={(e) => handleItemMouseDown(e, item)}
-                            >
-                                {item.type === 'drone' ? (
-                                    <Drone
-                                        selected={selectedIds.has(item.id)}
-                                        dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
-                                        droneType={item.droneType}
-                                        isInFormation={!!item.assignedObject}
-                                    />
-                                ) : (
-                                    <SimulationObject
-                                        data={item}
-                                        selected={selectedIds.has(item.id)}
-                                        dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
-                                        onResizeMouseDown={handleResizeMouseDown}
-                                        showLabels={settings.showObjectLabels !== false}
-                                    />
-                                )}
-
-                                {/* Shadow for 3D Mode */}
-                                {show3DMode && (pos.z > 0) && (
-                                    <div
-                                        style={{
-                                            position: 'absolute',
-                                            top: '50%',
-                                            left: '50%',
-                                            width: '100%',
-                                            height: '100%',
-                                            background: 'rgba(0,0,0,0.5)',
-                                            borderRadius: item.type === 'circle' || item.type === 'drone' ? '50%' : '4px',
-                                            transform: `translate(-50%, -50%) scale(${1 - Math.min(pos.z / 1000, 0.5)})`,
-                                            filter: `blur(${Math.min(pos.z / 5, 20)}px)`,
-                                            zIndex: -1,
-                                            pointerEvents: 'none'
-                                        }}
-                                    />
-                                )}
-
-
-                                {/* Delete Button - Top Left of shape */}
-                                {
-                                    selectedIds.has(item.id) && selectedIds.size === 1 && (() => {
-                                        const w = item.w || (item.radius ? item.radius * 2 : 100);
-                                        const h = item.h || (item.radius ? item.radius * 2 : 100);
-                                        return (
-                                            <div
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (onDeleteItem) onDeleteItem(item.id);
-                                                }}
-                                                style={{
-                                                    position: 'absolute',
-                                                    top: `${-h / 2 - 12}px`,
-                                                    left: `${-w / 2 - 12}px`,
-                                                    width: '24px',
-                                                    height: '24px',
-                                                    borderRadius: '50%',
-                                                    background: '#ef4444',
-                                                    border: '2px solid white',
-                                                    cursor: 'pointer',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                                                    fontSize: '14px',
-                                                    color: 'white',
-                                                    fontWeight: 'bold',
-                                                    transform: `rotate(-${pos.rotation || 0}deg)`,
-                                                    zIndex: 100
-                                                }}
-                                                title="Delete"
-                                            >
-                                                ✕
-                                            </div>
-                                        );
-                                    })()
-                                }
-
-                                {/* Rotation Handle - Top Right of shape */}
-                                {
-                                    selectedIds.has(item.id) && selectedIds.size === 1 && (() => {
-                                        const w = item.w || (item.radius ? item.radius * 2 : 100);
-                                        const h = item.h || (item.radius ? item.radius * 2 : 100);
-                                        return (
-                                            <div
-                                                onMouseDown={(e) => {
-                                                    e.stopPropagation();
-                                                    setRotatingItem(item.id);
-                                                }}
-                                                style={{
-                                                    position: 'absolute',
-                                                    top: `${-h / 2 - 12}px`,
-                                                    right: `${-w / 2 - 12}px`,
-                                                    width: '24px',
-                                                    height: '24px',
-                                                    borderRadius: '50%',
-                                                    background: 'var(--accent-color)',
-                                                    border: '2px solid white',
-                                                    cursor: 'grab',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                                                    fontSize: '12px',
-                                                    color: 'white',
-                                                    fontWeight: 'bold',
-                                                    transform: `rotate(-${pos.rotation || 0}deg)`,
-                                                    zIndex: 100
-                                                }}
-                                                title="Drag to rotate"
-                                            >
-                                                ↻
-                                            </div>
-                                        );
-                                    })()
-                                }
-                            </div>
-                        );
-                    })}
-
-                {/* Multi-Selection Bounding Box */}
-                {selectedIds.size > 1 && (() => {
-                    const selectedItems = visibleItems.filter(item => selectedIds.has(item.id));
-                    if (selectedItems.length < 2) return null;
-
-                    // Calculate bounding box
-                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                    selectedItems.forEach(item => {
-                        const pos = getItemPosition(item);
-                        const w = item.w || (item.radius ? item.radius * 2 : 100);
-                        const h = item.h || (item.radius ? item.radius * 2 : 100);
-                        minX = Math.min(minX, pos.x - w / 2);
-                        minY = Math.min(minY, pos.y - h / 2);
-                        maxX = Math.max(maxX, pos.x + w / 2);
-                        maxY = Math.max(maxY, pos.y + h / 2);
-                    });
-
-                    const boxWidth = maxX - minX;
-                    const boxHeight = maxY - minY;
-                    const centerX = (minX + maxX) / 2;
-                    const centerY = (minY + maxY) / 2;
-
-                    return (
-                        <div style={{
+                {/* World origin wrapper - positioned at center of 10000x10000 grid */}
+                <div style={{
+                    position: 'absolute',
+                    left: 5000,
+                    top: 5000,
+                    width: 0,
+                    height: 0
+                }}>
+                    {/* Force Vectors Visualization */}
+                    {showForceVectors && (
+                        <svg style={{
                             position: 'absolute',
-                            left: minX,
-                            top: minY,
-                            width: boxWidth,
-                            height: boxHeight,
-                            border: '2px dashed var(--accent-color)',
-                            backgroundColor: 'rgba(99, 102, 241, 0.05)',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
                             pointerEvents: 'none',
-                            zIndex: 99
+                            overflow: 'visible',
+                            opacity: 0.7,
+                            zIndex: 10
                         }}>
-                            {/* Delete all selected */}
-                            <div
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    selectedIds.forEach(id => {
-                                        if (onDeleteItem) onDeleteItem(id);
-                                    });
-                                }}
-                                style={{
-                                    position: 'absolute',
-                                    top: '-12px',
-                                    left: '-12px',
-                                    width: '24px',
-                                    height: '24px',
-                                    borderRadius: '50%',
-                                    background: '#ef4444',
-                                    border: '2px solid white',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                                    fontSize: '14px',
-                                    color: 'white',
-                                    fontWeight: 'bold',
-                                    pointerEvents: 'auto',
-                                    zIndex: 101
-                                }}
-                                title={`Delete ${selectedIds.size} items`}
-                            >
-                                ✕
-                            </div>
-                            {/* Selection count badge */}
+                            {visibleItems.filter(item => item.type === 'drone').map(drone => {
+                                const pos = getItemPosition(drone);
+
+                                // 1. Attraction Force (Green) - towards target
+                                let attrVector = { x: 0, y: 0 };
+                                let targetPos = null;
+
+                                if (isSimulating && states.length > 1) {
+                                    const currentIndex = states.findIndex(s => s.id === currentStateId);
+                                    const nextIndex = (currentIndex + 1) % states.length; // Loop or clamp handled in loop
+                                    const nextStateId = states[nextIndex]?.id;
+                                    if (nextStateId && drone.statePositions?.[nextStateId]) {
+                                        targetPos = drone.statePositions[nextStateId];
+                                    }
+                                } else if (drone.lockedToObject) {
+                                    // If locked to object, target is the formation slot
+                                    const parent = items.find(i => i.id === drone.lockedToObject);
+                                    if (parent) {
+                                        const parentPos = getItemPosition(parent);
+                                        if (drone.relativeOffset) {
+                                            const angle = (parentPos.rotation || 0) * Math.PI / 180;
+                                            const off = drone.relativeOffset;
+                                            targetPos = {
+                                                x: parentPos.x + (off.x * Math.cos(angle) - off.y * Math.sin(angle)),
+                                                y: parentPos.y + (off.x * Math.sin(angle) + off.y * Math.cos(angle))
+                                            };
+                                        }
+                                    }
+                                }
+
+                                if (targetPos) {
+                                    const dx = targetPos.x - pos.x;
+                                    const dy = targetPos.y - pos.y;
+                                    const dist = Math.hypot(dx, dy);
+                                    if (dist > 1) {
+                                        // Normalize and scale for visualization (max 50px length)
+                                        const len = Math.min(dist, 50);
+                                        attrVector = { x: (dx / dist) * len, y: (dy / dist) * len };
+                                    }
+                                }
+
+                                // 2. Repulsion Force (Red) - away from obstacles
+                                let repVector = { x: 0, y: 0 };
+                                items.filter(i => i.type !== 'drone' && i.id !== drone.lockedToObject).forEach(obs => {
+                                    const obsPos = getItemPosition(obs);
+                                    const dx = pos.x - obsPos.x;
+                                    const dy = pos.y - obsPos.y;
+                                    const dist = Math.hypot(dx, dy);
+                                    const safeDist = (obs.radius || Math.max(obs.w || 0, obs.h || 0) / 2) + 30; // approx radius + buffer
+
+                                    if (dist < safeDist && dist > 0) {
+                                        const strength = (safeDist - dist) / safeDist; // 0 to 1
+                                        const len = strength * 50;
+                                        repVector.x += (dx / dist) * len;
+                                        repVector.y += (dy / dist) * len;
+                                    }
+                                });
+
+                                // 3. Resultant (Blue)
+                                const resVector = {
+                                    x: attrVector.x + repVector.x,
+                                    y: attrVector.y + repVector.y
+                                };
+
+                                return (
+                                    <g key={drone.id}>
+                                        {/* Attraction */}
+                                        {Math.hypot(attrVector.x, attrVector.y) > 1 && (
+                                            <line
+                                                x1={pos.x} y1={pos.y}
+                                                x2={pos.x + attrVector.x} y2={pos.y + attrVector.y}
+                                                stroke="#10b981" strokeWidth={2} strokeOpacity={0.8}
+                                            />
+                                        )}
+                                        {/* Repulsion */}
+                                        {Math.hypot(repVector.x, repVector.y) > 1 && (
+                                            <line
+                                                x1={pos.x} y1={pos.y}
+                                                x2={pos.x + repVector.x} y2={pos.y + repVector.y}
+                                                stroke="#ef4444" strokeWidth={2} strokeOpacity={0.8}
+                                            />
+                                        )}
+                                        {/* Resultant */}
+                                        {Math.hypot(resVector.x, resVector.y) > 1 && (
+                                            <line
+                                                x1={pos.x} y1={pos.y}
+                                                x2={pos.x + resVector.x} y2={pos.y + resVector.y}
+                                                stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 2"
+                                            />
+                                        )}
+                                    </g>
+                                );
+                            })}
+                        </svg>
+                    )}
+
+                    {/* Path Tracking Lines */}
+                    {showPathTracking && states && states.length > 1 && (
+                        <svg style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            pointerEvents: 'none',
+                            overflow: 'visible'
+                        }}>
+                            {visibleItems.filter(item => item.type !== 'drone').map((item, idx) => {
+                                // Generate color for this object
+                                const hue = (idx * 137.5) % 360; // Golden angle for color distribution
+                                const pathColor = `hsl(${hue}, 70%, 60%)`;
+
+                                // Get active states for this item in order
+                                const activeStates = states.filter(state => item.activeStates?.includes(state.id));
+
+                                if (activeStates.length < 2) return null;
+
+                                // Build path segments, using custom paths when available
+                                const pathSegments = [];
+                                for (let i = 0; i < activeStates.length - 1; i++) {
+                                    const fromState = activeStates[i];
+                                    const toState = activeStates[i + 1];
+                                    const pathKey = `${fromState.id}_to_${toState.id}`;
+                                    const customPath = item.customTransitionPaths?.[pathKey];
+
+                                    if (customPath && customPath.length > 1) {
+                                        // Use custom path points
+                                        pathSegments.push(...customPath.map((p, j) => ({
+                                            x: p.x,
+                                            y: p.y,
+                                            isFirst: i === 0 && j === 0
+                                        })));
+                                    } else {
+                                        // Use straight line between states
+                                        const fromPos = item.statePositions?.[fromState.id];
+                                        const toPos = item.statePositions?.[toState.id];
+                                        if (fromPos && toPos) {
+                                            if (i === 0) {
+                                                pathSegments.push({ x: fromPos.x, y: fromPos.y, isFirst: true });
+                                            }
+                                            pathSegments.push({ x: toPos.x, y: toPos.y, isFirst: false });
+                                        }
+                                    }
+                                }
+
+                                if (pathSegments.length < 2) return null;
+
+                                // Create SVG path
+                                const pathData = pathSegments.map((p, i) =>
+                                    `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+                                ).join(' ');
+
+                                return (
+                                    <path
+                                        key={item.id}
+                                        d={pathData}
+                                        stroke={pathColor}
+                                        strokeWidth="2"
+                                        strokeDasharray="5,5"
+                                        fill="none"
+                                        opacity="0.6"
+                                    />
+                                );
+                            })}
+                        </svg>
+                    )}
+
+                    {/* Drone Path Tracking Lines */}
+                    {showDronePaths && states && states.length > 1 && (
+                        <svg style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            pointerEvents: 'none',
+                            overflow: 'visible'
+                        }}>
+                            {visibleItems.filter(item => item.type === 'drone').map((item) => {
+                                const droneColor = item.droneType === 'air' ? '#60a5fa' : '#8b5cf6';
+
+                                // Get active states for this drone in order
+                                const activeStates = states.filter(state => item.activeStates?.includes(state.id));
+
+                                if (activeStates.length < 2) return null;
+
+                                // Build path segments from customPath in statePositions
+                                const pathSegments = [];
+                                for (let i = 0; i < activeStates.length - 1; i++) {
+                                    const fromState = activeStates[i];
+                                    const toState = activeStates[i + 1];
+                                    const toStatePos = item.statePositions?.[toState.id];
+                                    const customPath = toStatePos?.customPath;
+
+                                    if (customPath && customPath.length > 1) {
+                                        // Use custom path points
+                                        pathSegments.push(...customPath.map((p, j) => ({
+                                            x: p.x,
+                                            y: p.y,
+                                            isFirst: i === 0 && j === 0
+                                        })));
+                                    } else {
+                                        // Use straight line between states
+                                        const fromPos = item.statePositions?.[fromState.id];
+                                        const toPos = item.statePositions?.[toState.id];
+                                        if (fromPos && toPos) {
+                                            if (i === 0) {
+                                                pathSegments.push({ x: fromPos.x, y: fromPos.y, isFirst: true });
+                                            }
+                                            pathSegments.push({ x: toPos.x, y: toPos.y, isFirst: false });
+                                        }
+                                    }
+                                }
+
+                                if (pathSegments.length < 2) return null;
+
+                                // Create SVG path
+                                const pathData = pathSegments.map((p, i) =>
+                                    `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+                                ).join(' ');
+
+                                // Check for collisions
+                                const collisions = [];
+
+                                // Prepare obstacles (objects that are not drones and not the locked object)
+                                const obstacles = visibleItems.filter(obj =>
+                                    obj.type !== 'drone' &&
+                                    obj.id !== item.lockedToObject
+                                ).map(o => {
+                                    // Find state ID for position check - use current state or next state from segments
+                                    // For simplicity, we check against the obstacles' position in the states traversed
+                                    // Here we just check against obstacle position in the 'from' states of the segments
+                                    return {
+                                        ...o,
+                                        // Hack: passing the full object allows isPointInObstacle to look up statePositions
+                                        // But we need to know WHICH state. We'll simplify: check against obstacle pos in the FROM state of segment
+                                    };
+                                });
+
+                                // Check each segment against obstacles
+                                let segmentIndex = 0;
+                                for (let i = 0; i < activeStates.length - 1; i++) {
+                                    const fromState = activeStates[i];
+                                    // We only check collisions if we have a valid segment
+                                    // pathSegments is flattened, so we need to track where we are
+                                    // Simplified approach: Check every segment in the flattened list
+                                    // This assumes obstacles don't move drastically between states or we check against a "representative" state
+
+                                    const obsInState = obstacles.map(o => ({ ...o, _checkStateId: fromState.id }));
+
+                                    // How many points in this transition?
+                                    const toState = activeStates[i + 1];
+                                    const customPath = item.statePositions?.[toState.id]?.customPath;
+                                    const count = (customPath && customPath.length > 1) ? customPath.length : 2; // 2 for straight line
+
+                                    for (let k = 0; k < count - 1; k++) {
+                                        const p1 = pathSegments[segmentIndex + k];
+                                        const p2 = pathSegments[segmentIndex + k + 1];
+                                        if (!p1 || !p2) continue;
+
+                                        obsInState.forEach(obs => {
+                                            // Get drone's altitude at this segment (interpolate between states)
+                                            const fromStatePos = item.statePositions?.[fromState.id];
+                                            const toStatePos = item.statePositions?.[toState.id];
+                                            const droneZ = Math.min(fromStatePos?.z || 0, toStatePos?.z || 0);
+
+                                            // Get obstacle height (default 100 if not specified)
+                                            const obstacleHeight = obs.height || 100;
+
+                                            // Only check collision if drone altitude is below obstacle height
+                                            // Air drones flying above obstacles won't collide
+                                            if (droneZ < obstacleHeight) {
+                                                if (lineIntersectsObstacle(p1, p2, obs, 5)) {
+                                                    collisions.push({
+                                                        x: (p1.x + p2.x) / 2,
+                                                        y: (p1.y + p2.y) / 2
+                                                    });
+                                                }
+                                            }
+                                        });
+                                    }
+                                    segmentIndex += count; // This offset might be slightly off if we push isFirst logic, but close enough for viz
+                                }
+
+                                return (
+                                    <g key={item.id}>
+                                        <path
+                                            d={pathData}
+                                            stroke={droneColor}
+                                            strokeWidth="2"
+                                            strokeDasharray="3,3"
+                                            fill="none"
+                                            opacity="0.7"
+                                        />
+                                        {collisions.map((col, idx) => (
+                                            <g key={`col-${idx}`} transform={`translate(${col.x}, ${col.y})`}>
+                                                <circle r="8" fill="#ef4444" stroke="white" strokeWidth="1" />
+                                                <text
+                                                    textAnchor="middle"
+                                                    dy="3"
+                                                    fill="white"
+                                                    fontSize="10"
+                                                    fontWeight="bold"
+                                                    style={{ pointerEvents: 'none' }}
+                                                >!</text>
+                                            </g>
+                                        ))}
+                                    </g>
+                                );
+                            })}
+                        </svg>
+                    )}
+
+                    {visibleItems
+                        .filter(item => !(pathDrawingMode && item.id === pathDrawingMode.objectId)) // Hide object being drawn
+                        .map(item => {
+                            const pos = getItemPosition(item);
+                            return (
+                                <div
+                                    key={item.id}
+                                    style={{
+                                        position: 'absolute',
+                                        left: pos.x,
+                                        top: pos.y,
+                                        transform: `translate(-50%, -50%) rotate(${pos.rotation || 0}deg) ${show3DMode ? `scale(${1 + (pos.z || 0) / 500})` : ''}`,
+                                        zIndex: (selectedIds.has(item.id) ? 10 : 1) + Math.floor(pos.z || 0),
+                                        transition: isSimulating ? 'none' : 'transform 0.1s'
+                                    }}
+                                    onMouseDown={(e) => handleItemMouseDown(e, item)}
+                                >
+                                    {item.type === 'drone' ? (
+                                        <Drone
+                                            selected={selectedIds.has(item.id)}
+                                            dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
+                                            droneType={item.droneType}
+                                            isInFormation={!!item.assignedObject}
+                                        />
+                                    ) : (
+                                        <SimulationObject
+                                            data={item}
+                                            selected={selectedIds.has(item.id)}
+                                            dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
+                                            onResizeMouseDown={handleResizeMouseDown}
+                                            showLabels={settings.showObjectLabels !== false}
+                                        />
+                                    )}
+
+                                    {/* Shadow for 3D Mode */}
+                                    {show3DMode && (pos.z > 0) && (
+                                        <div
+                                            style={{
+                                                position: 'absolute',
+                                                top: '50%',
+                                                left: '50%',
+                                                width: '100%',
+                                                height: '100%',
+                                                background: 'rgba(0,0,0,0.5)',
+                                                borderRadius: item.type === 'circle' || item.type === 'drone' ? '50%' : '4px',
+                                                transform: `translate(-50%, -50%) scale(${1 - Math.min(pos.z / 1000, 0.5)})`,
+                                                filter: `blur(${Math.min(pos.z / 5, 20)}px)`,
+                                                zIndex: -1,
+                                                pointerEvents: 'none'
+                                            }}
+                                        />
+                                    )}
+
+
+                                    {/* Delete Button - Top Left of shape */}
+                                    {
+                                        selectedIds.has(item.id) && selectedIds.size === 1 && (() => {
+                                            const w = item.w || (item.radius ? item.radius * 2 : 100);
+                                            const h = item.h || (item.radius ? item.radius * 2 : 100);
+                                            return (
+                                                <div
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (onDeleteItem) onDeleteItem(item.id);
+                                                    }}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: `${-h / 2 - 12}px`,
+                                                        left: `${-w / 2 - 12}px`,
+                                                        width: '24px',
+                                                        height: '24px',
+                                                        borderRadius: '50%',
+                                                        background: '#ef4444',
+                                                        border: '2px solid white',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                                        fontSize: '14px',
+                                                        color: 'white',
+                                                        fontWeight: 'bold',
+                                                        transform: `rotate(-${pos.rotation || 0}deg)`,
+                                                        zIndex: 100
+                                                    }}
+                                                    title="Delete"
+                                                >
+                                                    ✕
+                                                </div>
+                                            );
+                                        })()
+                                    }
+
+                                    {/* Rotation Handle - Top Right of shape */}
+                                    {
+                                        selectedIds.has(item.id) && selectedIds.size === 1 && (() => {
+                                            const w = item.w || (item.radius ? item.radius * 2 : 100);
+                                            const h = item.h || (item.radius ? item.radius * 2 : 100);
+                                            return (
+                                                <div
+                                                    onMouseDown={(e) => {
+                                                        e.stopPropagation();
+                                                        setRotatingItem(item.id);
+                                                    }}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: `${-h / 2 - 12}px`,
+                                                        right: `${-w / 2 - 12}px`,
+                                                        width: '24px',
+                                                        height: '24px',
+                                                        borderRadius: '50%',
+                                                        background: 'var(--accent-color)',
+                                                        border: '2px solid white',
+                                                        cursor: 'grab',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                                        fontSize: '12px',
+                                                        color: 'white',
+                                                        fontWeight: 'bold',
+                                                        transform: `rotate(-${pos.rotation || 0}deg)`,
+                                                        zIndex: 100
+                                                    }}
+                                                    title="Drag to rotate"
+                                                >
+                                                    ↻
+                                                </div>
+                                            );
+                                        })()
+                                    }
+                                </div>
+                            );
+                        })}
+
+                    {/* Multi-Selection Bounding Box */}
+                    {selectedIds.size > 1 && (() => {
+                        const selectedItems = visibleItems.filter(item => selectedIds.has(item.id));
+                        if (selectedItems.length < 2) return null;
+
+                        // Calculate bounding box
+                        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                        selectedItems.forEach(item => {
+                            const pos = getItemPosition(item);
+                            const w = item.w || (item.radius ? item.radius * 2 : 100);
+                            const h = item.h || (item.radius ? item.radius * 2 : 100);
+                            minX = Math.min(minX, pos.x - w / 2);
+                            minY = Math.min(minY, pos.y - h / 2);
+                            maxX = Math.max(maxX, pos.x + w / 2);
+                            maxY = Math.max(maxY, pos.y + h / 2);
+                        });
+
+                        const boxWidth = maxX - minX;
+                        const boxHeight = maxY - minY;
+                        const centerX = (minX + maxX) / 2;
+                        const centerY = (minY + maxY) / 2;
+
+                        return (
                             <div style={{
                                 position: 'absolute',
-                                top: '-12px',
-                                right: '-12px',
-                                padding: '2px 8px',
-                                borderRadius: '12px',
-                                background: 'var(--accent-color)',
-                                color: 'white',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                pointerEvents: 'none'
+                                left: minX,
+                                top: minY,
+                                width: boxWidth,
+                                height: boxHeight,
+                                border: '2px dashed var(--accent-color)',
+                                backgroundColor: 'rgba(99, 102, 241, 0.05)',
+                                pointerEvents: 'none',
+                                zIndex: 99
                             }}>
-                                {selectedIds.size} selected
+                                {/* Delete all selected */}
+                                <div
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        selectedIds.forEach(id => {
+                                            if (onDeleteItem) onDeleteItem(id);
+                                        });
+                                    }}
+                                    style={{
+                                        position: 'absolute',
+                                        top: '-12px',
+                                        left: '-12px',
+                                        width: '24px',
+                                        height: '24px',
+                                        borderRadius: '50%',
+                                        background: '#ef4444',
+                                        border: '2px solid white',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                        fontSize: '14px',
+                                        color: 'white',
+                                        fontWeight: 'bold',
+                                        pointerEvents: 'auto',
+                                        zIndex: 101
+                                    }}
+                                    title={`Delete ${selectedIds.size} items`}
+                                >
+                                    ✕
+                                </div>
+                                {/* Selection count badge */}
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '-12px',
+                                    right: '-12px',
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    background: 'var(--accent-color)',
+                                    color: 'white',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    pointerEvents: 'none'
+                                }}>
+                                    {selectedIds.size} selected
+                                </div>
                             </div>
-                        </div>
-                    );
-                })()}
+                        );
+                    })()}
 
-                {activeDrag?.type === 'box' && (
-                    <div style={{
-                        position: 'absolute',
-                        left: Math.min(activeDrag.startWorld.x, activeDrag.currentWorld.x),
-                        top: Math.min(activeDrag.startWorld.y, activeDrag.currentWorld.y),
-                        width: Math.abs(activeDrag.currentWorld.x - activeDrag.startWorld.x),
-                        height: Math.abs(activeDrag.currentWorld.y - activeDrag.startWorld.y),
-                        backgroundColor: 'rgba(99, 102, 241, 0.2)',
-                        border: '1px solid var(--accent-color)',
-                        pointerEvents: 'none',
-                        zIndex: 100
-                    }} />
-                )}
+                    {activeDrag?.type === 'box' && (
+                        <div style={{
+                            position: 'absolute',
+                            left: Math.min(activeDrag.startWorld.x, activeDrag.currentWorld.x),
+                            top: Math.min(activeDrag.startWorld.y, activeDrag.currentWorld.y),
+                            width: Math.abs(activeDrag.currentWorld.x - activeDrag.startWorld.x),
+                            height: Math.abs(activeDrag.currentWorld.y - activeDrag.startWorld.y),
+                            backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                            border: '1px solid var(--accent-color)',
+                            pointerEvents: 'none',
+                            zIndex: 100
+                        }} />
+                    )}
 
-                {drawingMode && drawingMode.points.length > 0 && (
-                    <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 200 }}>
-                        <polyline
-                            points={drawingMode.points.map(p => `${p.x},${p.y}`).join(' ')}
-                            fill="none"
-                            stroke="#4ade80"
-                            strokeWidth="2"
-                            strokeDasharray="5,5"
-                        />
-                        {drawingMode.points.map((p, i) => (
-                            <circle key={i} cx={p.x} cy={p.y} r="4" fill="#4ade80" />
-                        ))}
-                    </svg>
-                )}
+                    {drawingMode && drawingMode.points.length > 0 && (
+                        <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 200 }}>
+                            <polyline
+                                points={drawingMode.points.map(p => `${p.x},${p.y}`).join(' ')}
+                                fill="none"
+                                stroke="#4ade80"
+                                strokeWidth="2"
+                                strokeDasharray="5,5"
+                            />
+                            {drawingMode.points.map((p, i) => (
+                                <circle key={i} cx={p.x} cy={p.y} r="4" fill="#4ade80" />
+                            ))}
+                        </svg>
+                    )}
 
-                {/* Path Drawing Preview */}
-                {/* Path Drawing Preview */}
-                {pathDrawingMode && (
-                    <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 200 }}>
-                        {/* Start Point (Green) */}
-                        <circle
-                            cx={pathDrawingMode.points[0].x}
-                            cy={pathDrawingMode.points[0].y}
-                            r="15"
-                            fill="#10b981"
-                            opacity="0.3"
-                        />
-                        <circle
-                            cx={pathDrawingMode.points[0].x}
-                            cy={pathDrawingMode.points[0].y}
-                            r="6"
-                            fill="#10b981"
-                            stroke="white"
-                            strokeWidth="2"
-                        />
+                    {/* Path Drawing Preview */}
+                    {/* Path Drawing Preview */}
+                    {pathDrawingMode && (
+                        <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 200 }}>
+                            {/* Start Point (Green) */}
+                            <circle
+                                cx={pathDrawingMode.points[0].x}
+                                cy={pathDrawingMode.points[0].y}
+                                r="15"
+                                fill="#10b981"
+                                opacity="0.3"
+                            />
+                            <circle
+                                cx={pathDrawingMode.points[0].x}
+                                cy={pathDrawingMode.points[0].y}
+                                r="6"
+                                fill="#10b981"
+                                stroke="white"
+                                strokeWidth="2"
+                            />
 
-                        {/* End Point (Red) */}
-                        {pathDrawingMode.endPoint && (
-                            <>
-                                <circle
-                                    cx={pathDrawingMode.endPoint.x}
-                                    cy={pathDrawingMode.endPoint.y}
-                                    r="15"
-                                    fill="#ef4444"
-                                    opacity="0.3"
-                                />
-                                <circle
-                                    cx={pathDrawingMode.endPoint.x}
-                                    cy={pathDrawingMode.endPoint.y}
-                                    r="6"
-                                    fill="#ef4444"
-                                    stroke="white"
-                                    strokeWidth="2"
-                                />
-                            </>
-                        )}
-
-                        {/* Drawn Path */}
-                        {pathDrawingMode.points.length > 1 && (
-                            <>
-                                <path
-                                    d={pathDrawingMode.points.map((p, i) =>
-                                        `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
-                                    ).join(' ')}
-                                    fill="none"
-                                    stroke="#f59e0b"
-                                    strokeWidth="3"
-                                    opacity="0.9"
-                                />
-                                {pathDrawingMode.points.slice(1).map((p, i) => (
+                            {/* End Point (Red) */}
+                            {pathDrawingMode.endPoint && (
+                                <>
                                     <circle
-                                        key={i}
-                                        cx={p.x}
-                                        cy={p.y}
-                                        r="2"
-                                        fill="#f59e0b"
+                                        cx={pathDrawingMode.endPoint.x}
+                                        cy={pathDrawingMode.endPoint.y}
+                                        r="15"
+                                        fill="#ef4444"
+                                        opacity="0.3"
                                     />
-                                ))}
-                            </>
-                        )}
-                    </svg>
-                )}
+                                    <circle
+                                        cx={pathDrawingMode.endPoint.x}
+                                        cy={pathDrawingMode.endPoint.y}
+                                        r="6"
+                                        fill="#ef4444"
+                                        stroke="white"
+                                        strokeWidth="2"
+                                    />
+                                </>
+                            )}
+
+                            {/* Drawn Path */}
+                            {pathDrawingMode.points.length > 1 && (
+                                <>
+                                    <path
+                                        d={pathDrawingMode.points.map((p, i) =>
+                                            `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+                                        ).join(' ')}
+                                        fill="none"
+                                        stroke="#f59e0b"
+                                        strokeWidth="3"
+                                        opacity="0.9"
+                                    />
+                                    {pathDrawingMode.points.slice(1).map((p, i) => (
+                                        <circle
+                                            key={i}
+                                            cx={p.x}
+                                            cy={p.y}
+                                            r="2"
+                                            fill="#f59e0b"
+                                        />
+                                    ))}
+                                </>
+                            )}
+                        </svg>
+                    )}
+                </div>
+                {/* End of world origin wrapper */}
+
+                {
+                    visibleItems.length === 0 && !drawingMode && (
+                        <div style={{
+                            position: 'absolute',
+                            top: '50%', left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            color: 'var(--text-secondary)',
+                            pointerEvents: 'none',
+                            textAlign: 'center'
+                        }}>
+                            <p>Drag items from the sidebar to start</p>
+                            <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Scroll to zoom • Drag to select • Shift+Drag to pan</p>
+                        </div>
+                    )
+                }
+
             </div>
-
-            {
-                visibleItems.length === 0 && !drawingMode && (
-                    <div style={{
-                        position: 'absolute',
-                        top: '50%', left: '50%',
-                        transform: 'translate(-50%, -50%)',
-                        color: 'var(--text-secondary)',
-                        pointerEvents: 'none',
-                        textAlign: 'center'
-                    }}>
-                        <p>Drag items from the sidebar to start</p>
-                        <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Scroll to zoom • Drag to select • Shift+Drag to pan</p>
-                    </div>
-                )
-            }
-
-        </div >
+        </div>
     );
 }

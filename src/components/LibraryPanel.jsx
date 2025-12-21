@@ -87,7 +87,9 @@ export function LibraryPanel({
             display: 'flex',
             flexDirection: 'column',
             height: '100%',
-            overflowY: 'auto'
+            overflowY: 'auto',
+            position: 'relative',
+            zIndex: 10
         }}>
             {/* Library Section - Compact */}
             <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>

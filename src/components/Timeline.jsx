@@ -39,7 +39,9 @@ export function Timeline({
             alignItems: 'center',
             padding: '0 1.5rem',
             gap: '1.5rem',
-            flexShrink: 0
+            flexShrink: 0,
+            position: 'relative',
+            zIndex: 10
         }}>
             {/* Simulation Controls */}
             <div style={{

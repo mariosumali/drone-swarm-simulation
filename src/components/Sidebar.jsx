@@ -17,7 +17,7 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
 
     // Get display position (interpolated if simulating)
     const getDisplayPosition = (item) => {
-        const currentPos = item.statePositions?.[currentStateId] || { x: 0, y: 0, rotation: 0 };
+        const currentPos = item.statePositions?.[currentStateId] || { x: 0, y: 0, z: 0, rotation: 0 };
         if (!isSimulating || !states || states.length < 2) return currentPos;
 
         const currentIndex = states.findIndex(s => s.id === currentStateId);
@@ -27,6 +27,7 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
         return {
             x: interpolate(currentPos.x, nextPos.x, animationProgress),
             y: interpolate(currentPos.y, nextPos.y, animationProgress),
+            z: interpolate(currentPos.z || 0, nextPos.z || 0, animationProgress),
             rotation: interpolate(currentPos.rotation || 0, nextPos.rotation || 0, animationProgress)
         };
     };
@@ -220,10 +221,10 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                             />
                                         </div>
                                     </div>
-                                    {/* Only show Altitude for air drones */}
-                                    {singleSelectedItem.type === 'drone' && singleSelectedItem.droneType !== 'ground' && (
+                                    {/* Z Position - for air drones (Altitude) and non-drone objects (Elevation) */}
+                                    {(singleSelectedItem.type !== 'drone' || singleSelectedItem.droneType !== 'ground') && (
                                         <div style={formGroupStyle}>
-                                            <label style={labelStyle}>Altitude (Z)</label>
+                                            <label style={labelStyle}>{singleSelectedItem.type === 'drone' ? 'Altitude (Z)' : 'Z Position'}</label>
                                             <input
                                                 type="number"
                                                 value={Math.round(displayPos.z || 0)}
@@ -247,6 +248,7 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                             />
                                         </div>
                                     )}
+
                                 </>
                             );
                         })()}

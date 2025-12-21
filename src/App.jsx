@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
 import { LibraryPanel } from './components/LibraryPanel';
 import { Playground } from './components/Playground';
+import { Playground3D } from './components/Playground3D';
 import { Timeline } from './components/Timeline';
 import { EntityList } from './components/EntityList';
 import { ZoomControls } from './components/ZoomControls';
@@ -14,7 +15,8 @@ import { generateAutoPath } from './utils/pathfinding';
 function App() {
     const [items, setItems] = useState([]);
     const [selectedIds, setSelectedIds] = useState(new Set());
-    const [viewport, setViewport] = useState({ zoom: 1, offsetX: 0, offsetY: 0 });
+    // Viewport will be centered once the playground container is mounted
+    const [viewport, setViewport] = useState({ zoom: 1, offsetX: 0, offsetY: 0, needsCenter: true });
     const [drawingMode, setDrawingMode] = useState(null);
     const [pathDrawingMode, setPathDrawingMode] = useState(null); // { objectId, fromStateId, toStateId, points }
     const [scrollZoomEnabled, setScrollZoomEnabled] = useState(true);
@@ -37,7 +39,7 @@ function App() {
     const [showDronePaths, setShowDronePaths] = useState(true);
     const [showForceVectors, setShowForceVectors] = useState(false);
     const [showTelemetry, setShowTelemetry] = useState(false);
-    const [show3DMode, setShow3DMode] = useState(false);
+    const [show3DMode, setShow3DMode] = useState(true); // 3D mode by default
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
     const [clipboard, setClipboard] = useState([]);
     const [theme, setTheme] = useState(() => {
@@ -119,6 +121,27 @@ function App() {
     const mediaRecorderRef = useRef(null);
     const chunksRef = useRef([]);
     const playgroundContainerRef = useRef(null);
+
+    // Center the viewport so (0,0) is in the center of the canvas (aligns 2D with 3D)
+    useEffect(() => {
+        if (viewport.needsCenter) {
+            // Use a small timeout to ensure the container is mounted and has dimensions
+            const timer = setTimeout(() => {
+                if (playgroundContainerRef.current) {
+                    const rect = playgroundContainerRef.current.getBoundingClientRect();
+                    if (rect.width > 0 && rect.height > 0) {
+                        setViewport(prev => ({
+                            ...prev,
+                            offsetX: rect.width / 2,
+                            offsetY: rect.height / 2,
+                            needsCenter: false
+                        }));
+                    }
+                }
+            }, 50);
+            return () => clearTimeout(timer);
+        }
+    }, [viewport.needsCenter]);
 
     const handleToggleRecord = async () => {
         if (isRecording) {
@@ -1559,6 +1582,28 @@ function App() {
                     >
                         <Settings size={18} />
                     </button>
+
+                    {/* 2D/3D Toggle */}
+                    <button
+                        onClick={() => setShow3DMode(!show3DMode)}
+                        style={{
+                            padding: '0.5rem 0.75rem',
+                            background: show3DMode ? 'linear-gradient(135deg, #3b82f6, #8b5cf6)' : 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '8px',
+                            color: show3DMode ? 'white' : 'var(--text-primary)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontWeight: 600,
+                            fontSize: '12px',
+                            transition: 'all 0.2s'
+                        }}
+                        title={show3DMode ? 'Switch to 2D Mode' : 'Switch to 3D Mode'}
+                    >
+                        {show3DMode ? '🎮 3D' : '📐 2D'}
+                    </button>
                     <button
                         onClick={handleToggleRecord}
                         style={{
@@ -1644,7 +1689,7 @@ function App() {
                 />
 
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ flex: 1, position: 'relative' }}>
+                    <div ref={playgroundContainerRef} style={{ flex: 1, position: 'relative' }}>
                         <Sidebar
                             items={items}
                             selectedIds={selectedIds}
@@ -1665,36 +1710,60 @@ function App() {
                             isExpanded={isSidebarExpanded}
                             onToggleExpand={() => setIsSidebarExpanded(!isSidebarExpanded)}
                         />
-                        <Playground
-                            items={items}
-                            onAddItem={addItem}
-                            onUpdateItem={updateItem}
-                            selectedIds={selectedIds}
-                            onSelectionChange={setSelectedIds}
-                            viewport={viewport}
-                            onViewportChange={setViewport}
-                            drawingMode={drawingMode}
-                            onDrawingModeChange={setDrawingMode}
-                            onFinishDrawing={finishDrawing}
-                            currentStateId={currentStateId}
-                            isSimulating={isSimulating}
-                            animationProgress={animationProgress}
-                            states={states}
-                            showPathTracking={showPathTracking}
-                            showDronePaths={showDronePaths}
-                            showForceVectors={showForceVectors}
-                            show3DMode={show3DMode}
-                            pathDrawingMode={pathDrawingMode}
-                            onPathDrawingModeChange={setPathDrawingMode}
-                            onFinishPathDrawing={finishPathDrawing}
-                            settings={settings}
-                            containerRef={playgroundContainerRef}
-                            onDeleteItem={(id) => {
-                                setItems(prev => prev.filter(item => item.id !== id));
-                                setSelectedIds(new Set());
-                            }}
-                            scrollZoomEnabled={scrollZoomEnabled}
-                        />
+                        {show3DMode ? (
+                            <Playground3D
+                                items={items}
+                                selectedIds={selectedIds}
+                                onSelectionChange={setSelectedIds}
+                                currentStateId={currentStateId}
+                                isSimulating={isSimulating}
+                                animationProgress={animationProgress}
+                                states={states}
+                                showPathTracking={showPathTracking}
+                                showDronePaths={showDronePaths}
+                                settings={settings}
+                                onUpdateItem={updateItem}
+                                onAddItem={addItem}
+                                onDeleteItem={(id) => {
+                                    setItems(prev => prev.filter(item => item.id !== id));
+                                    setSelectedIds(new Set());
+                                }}
+                                drawingMode={drawingMode}
+                                onDrawingModeChange={setDrawingMode}
+                                onFinishDrawing={finishDrawing}
+                            />
+                        ) : (
+                            <Playground
+                                items={items}
+                                onAddItem={addItem}
+                                onUpdateItem={updateItem}
+                                selectedIds={selectedIds}
+                                onSelectionChange={setSelectedIds}
+                                viewport={viewport}
+                                onViewportChange={setViewport}
+                                drawingMode={drawingMode}
+                                onDrawingModeChange={setDrawingMode}
+                                onFinishDrawing={finishDrawing}
+                                currentStateId={currentStateId}
+                                isSimulating={isSimulating}
+                                animationProgress={animationProgress}
+                                states={states}
+                                showPathTracking={showPathTracking}
+                                showDronePaths={showDronePaths}
+                                showForceVectors={showForceVectors}
+                                show3DMode={show3DMode}
+                                pathDrawingMode={pathDrawingMode}
+                                onPathDrawingModeChange={setPathDrawingMode}
+                                onFinishPathDrawing={finishPathDrawing}
+                                settings={settings}
+                                containerRef={playgroundContainerRef}
+                                onDeleteItem={(id) => {
+                                    setItems(prev => prev.filter(item => item.id !== id));
+                                    setSelectedIds(new Set());
+                                }}
+                                scrollZoomEnabled={scrollZoomEnabled}
+                            />
+                        )}
 
                     </div>
                     {showTelemetry && (

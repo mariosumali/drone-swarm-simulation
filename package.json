@@ -12,12 +12,15 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.4.2",
+    "@vitejs/plugin-react": "^4.3.4",
     "lucide-react": "^0.473.0",
     "prop-types": "^15.8.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "three": "^0.182.0",
     "uuid": "^11.0.4",
-    "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.0.7"
   }
 }

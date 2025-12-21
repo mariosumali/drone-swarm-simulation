@@ -17,7 +17,8 @@ export function ZoomControls({ viewport, onViewportChange, scrollZoomEnabled, on
     };
 
     const handleReset = () => {
-        onViewportChange({ zoom: 1, offsetX: 0, offsetY: 0 });
+        // Reset zoom and trigger re-centering
+        onViewportChange({ zoom: 1, offsetX: 0, offsetY: 0, needsCenter: true });
     };
 
     return (
