@@ -27,6 +27,7 @@ A multi-state drone swarm simulation system for planning and visualizing coordin
 - **Visual Indicators**: Distinct appearances for drone types and formation status
 
 ### Advanced Features
+- **Auto Pathfinding**: Generate obstacle-avoiding paths using A* algorithm
 - **Custom Transition Paths**: Draw curved paths for objects to follow between states
   - Drag-to-draw interface
   - Snap-to-endpoints with visual guides
@@ -34,6 +35,9 @@ A multi-state drone swarm simulation system for planning and visualizing coordin
 - **Path Tracking**: Visualize object movement paths with color-coded dotted lines
 - **Entity Management**: Hierarchical entity list with collapsible drone groups
 - **Undo/Redo**: Full history support for all actions
+- **Save/Load**: Export and import simulations as JSON files
+- **Settings Panel**: Configurable grid, snap-to-grid, pan/zoom sensitivity
+- **Light/Dark Mode**: Theme switching with persistent preferences
 
 ## Getting Started
 
@@ -103,9 +107,13 @@ The application will open at `http://localhost:5173`
 #### Keyboard Shortcuts
 - `Delete/Backspace`: Delete selected items
 - `Ctrl/Cmd + Z`: Undo
-- `Ctrl/Cmd + Shift + Z`: Redo
+- `Ctrl/Cmd + Y`: Redo
+- `Ctrl/Cmd + C`: Copy selected
+- `Ctrl/Cmd + V`: Paste
+- `Ctrl/Cmd + D`: Duplicate selected
+- `Ctrl/Cmd + A`: Select all
 - `Enter`: Finish drawing (custom shapes or paths)
-- `Escape`: Cancel drawing
+- `Escape`: Deselect / Cancel drawing
 
 ### Object Properties
 
@@ -165,6 +173,7 @@ Available for non-obstacle objects only:
 ### Utilities
 - **formationCalculator.js**: Ground and air formation algorithms
 - **pathInterpolation.js**: Catmull-Rom spline path smoothing
+- **pathfinding.js**: A* obstacle avoidance algorithm
 
 ## Technology Stack
 
