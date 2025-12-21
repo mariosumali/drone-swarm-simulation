@@ -7,7 +7,7 @@ export function Playground({
     items, onAddItem, onUpdateItem, selectedIds, onSelectionChange,
     viewport, onViewportChange,
     drawingMode, onDrawingModeChange, onFinishDrawing,
-    currentStateId
+    currentStateId, isSimulating, animationProgress, states
 }) {
     const playgroundRef = useRef(null);
     const contentRef = useRef(null);
@@ -16,9 +16,31 @@ export function Playground({
     const [panStart, setPanStart] = useState(null);
     const [rotatingItem, setRotatingItem] = useState(null);
 
-    // Get item position for current state
+    // Helper to interpolate values
+    const interpolate = (start, end, progress) => {
+        return start + (end - start) * progress;
+    };
+
+    // Get item position (with interpolation during simulation)
     const getItemPosition = (item) => {
-        return item.statePositions?.[currentStateId] || { x: 0, y: 0 };
+        const currentPos = item.statePositions?.[currentStateId] || { x: 0, y: 0, rotation: 0 };
+
+        if (!isSimulating || !states || states.length < 2) {
+            return currentPos;
+        }
+
+        // Find next state
+        const currentIndex = states.findIndex(s => s.id === currentStateId);
+        const nextIndex = (currentIndex + 1) % states.length;
+        const nextStateId = states[nextIndex].id;
+        const nextPos = item.statePositions?.[nextStateId] || currentPos;
+
+        // Interpolate between current and next
+        return {
+            x: interpolate(currentPos.x, nextPos.x, animationProgress),
+            y: interpolate(currentPos.y, nextPos.y, animationProgress),
+            rotation: interpolate(currentPos.rotation || 0, nextPos.rotation || 0, animationProgress)
+        };
     };
 
     // Filter items that exist in current state
@@ -281,6 +303,7 @@ export function Playground({
                                 <Drone
                                     selected={selectedIds.has(item.id)}
                                     dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
+                                    droneType={item.droneType}
                                 />
                             ) : (
                                 <SimulationObject

@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Play, Pause } from 'lucide-react';
+import { Plus, Trash2, Play, Pause, Square, Zap } from 'lucide-react';
 
-export function Timeline({ states, currentStateId, onStateChange, onAddState, onDeleteState, onUpdateStateName }) {
+export function Timeline({
+    states, currentStateId, onStateChange, onAddState, onDeleteState, onUpdateStateName,
+    isSimulating, onToggleSimulation, onStopSimulation, playbackSpeed, onPlaybackSpeedChange, animationProgress
+}) {
     const [editingId, setEditingId] = useState(null);
     const [editName, setEditName] = useState('');
 
@@ -36,6 +39,66 @@ export function Timeline({ states, currentStateId, onStateChange, onAddState, on
             gap: '1rem',
             flexShrink: 0
         }}>
+            {/* Simulation Controls */}
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button
+                    onClick={onToggleSimulation}
+                    disabled={states.length < 2}
+                    style={{
+                        padding: '0.75rem',
+                        background: isSimulating ? 'var(--accent-color)' : 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        color: isSimulating ? 'white' : 'var(--text-primary)',
+                        cursor: states.length < 2 ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        opacity: states.length < 2 ? 0.5 : 1
+                    }}
+                    title={isSimulating ? 'Pause' : 'Play'}
+                >
+                    {isSimulating ? <Pause size={20} /> : <Play size={20} />}
+                </button>
+                <button
+                    onClick={onStopSimulation}
+                    disabled={!isSimulating}
+                    style={{
+                        padding: '0.75rem',
+                        background: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        color: 'var(--text-primary)',
+                        cursor: isSimulating ? 'pointer' : 'not-allowed',
+                        display: 'flex',
+                        opacity: isSimulating ? 1 : 0.5
+                    }}
+                    title="Stop"
+                >
+                    <Square size={20} />
+                </button>
+
+                {/* Speed Control */}
+                <div style={{ display: 'flex', gap: '0.25rem', marginLeft: '0.5rem' }}>
+                    {[0.5, 1, 2].map(speed => (
+                        <button
+                            key={speed}
+                            onClick={() => onPlaybackSpeedChange(speed)}
+                            style={{
+                                padding: '0.5rem 0.75rem',
+                                background: playbackSpeed === speed ? 'var(--accent-color)' : 'var(--bg-tertiary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '6px',
+                                color: playbackSpeed === speed ? 'white' : 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                fontWeight: 500
+                            }}
+                        >
+                            {speed}x
+                        </button>
+                    ))}
+                </div>
+            </div>
+
             {/* Timeline States */}
             <div style={{
                 flex: 1,

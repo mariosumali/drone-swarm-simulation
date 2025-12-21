@@ -1,7 +1,7 @@
 import React from 'react';
-import { Plane, Square, Circle, Settings2, Trash2, Pencil, Edit3 } from 'lucide-react';
+import { Plane, Square, Circle, Settings2, Trash2, Pencil, Edit3, Truck } from 'lucide-react';
 
-export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, currentStateId, onToggleItemInState }) {
+export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, currentStateId, onToggleItemInState, isSimulating, animationProgress, onGenerateFormation }) {
     const handleDragStart = (e, type) => {
         e.dataTransfer.setData('application/react-dnd-type', type);
         e.dataTransfer.effectAllowed = 'copy';
@@ -11,6 +11,25 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
     const singleSelectedItem = selectionCount === 1
         ? items.find(i => selectedIds.has(i.id))
         : null;
+
+    // Helper for interpolating during simulation
+    const interpolate = (start, end, progress) => start + (end - start) * progress;
+
+    // Get display position (interpolated if simulating)
+    const getDisplayPosition = (item) => {
+        const currentPos = item.statePositions?.[currentStateId] || { x: 0, y: 0, rotation: 0 };
+        if (!isSimulating || !states || states.length < 2) return currentPos;
+
+        const currentIndex = states.findIndex(s => s.id === currentStateId);
+        const nextIndex = (currentIndex + 1) % states.length;
+        const nextPos = item.statePositions?.[states[nextIndex].id] || currentPos;
+
+        return {
+            x: interpolate(currentPos.x, nextPos.x, animationProgress),
+            y: interpolate(currentPos.y, nextPos.y, animationProgress),
+            rotation: interpolate(currentPos.rotation || 0, nextPos.rotation || 0, animationProgress)
+        };
+    };
 
     return (
         <div style={{
@@ -28,17 +47,33 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                 </h2>
 
                 <div style={{ display: 'grid', gap: '0.75rem' }}>
+                    {/* Air Drone */}
                     <div
                         draggable
-                        onDragStart={(e) => handleDragStart(e, 'drone')}
+                        onDragStart={(e) => handleDragStart(e, 'drone-air')}
                         style={draggableStyle}
                     >
-                        <div style={{ padding: '0.5rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '6px', color: '#818cf8' }}>
+                        <div style={{ padding: '0.5rem', background: 'rgba(96, 165, 250, 0.1)', borderRadius: '6px', color: '#60a5fa' }}>
                             <Plane size={20} />
                         </div>
                         <div>
-                            <div style={{ fontWeight: 500 }}>Drone</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Autonomous agent</div>
+                            <div style={{ fontWeight: 500 }}>Air Drone</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Surface coverage</div>
+                        </div>
+                    </div>
+
+                    {/* Ground Drone */}
+                    <div
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, 'drone-ground')}
+                        style={draggableStyle}
+                    >
+                        <div style={{ padding: '0.5rem', background: 'rgba(139, 92, 246, 0.1)', borderRadius: '6px', color: '#8b5cf6' }}>
+                            <Truck size={20} />
+                        </div>
+                        <div>
+                            <div style={{ fontWeight: 500 }}>Ground Drone</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Perimeter surround</div>
                         </div>
                     </div>
 
@@ -122,27 +157,35 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                             <input type="text" value={singleSelectedItem.id.slice(0, 8)} disabled style={inputStyle} />
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                            <div style={formGroupStyle}>
-                                <label style={labelStyle}>X Position</label>
-                                <input
-                                    type="number"
-                                    value={Math.round(singleSelectedItem.statePositions?.[currentStateId]?.x || 0)}
-                                    onChange={(e) => onUpdateItem(singleSelectedItem.id, { x: parseInt(e.target.value) || 0 })}
-                                    style={inputStyle}
-                                />
-                            </div>
-                            <div style={formGroupStyle}>
-                                <label style={labelStyle}>Y Position</label>
-                                <input
-                                    type="number"
-                                    value={Math.round(singleSelectedItem.statePositions?.[currentStateId]?.y || 0)}
-                                    onChange={(e) => onUpdateItem(singleSelectedItem.id, { y: parseInt(e.target.value) || 0 })}
-                                    style={inputStyle}
-                                />
-                            </div>
-                        </div>
-
+                        {singleSelectedItem && (() => {
+                            const displayPos = getDisplayPosition(singleSelectedItem);
+                            return (
+                                <>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                        <div style={formGroupStyle}>
+                                            <label style={labelStyle}>X Position</label>
+                                            <input
+                                                type="number"
+                                                value={Math.round(displayPos.x)}
+                                                onChange={(e) => onUpdateItem(singleSelectedItem.id, { x: parseInt(e.target.value) || 0 })}
+                                                style={inputStyle}
+                                                disabled={isSimulating}
+                                            />
+                                        </div>
+                                        <div style={formGroupStyle}>
+                                            <label style={labelStyle}>Y Position</label>
+                                            <input
+                                                type="number"
+                                                value={Math.round(displayPos.y)}
+                                                onChange={(e) => onUpdateItem(singleSelectedItem.id, { y: parseInt(e.target.value) || 0 })}
+                                                style={inputStyle}
+                                                disabled={isSimulating}
+                                            />
+                                        </div>
+                                    </div>
+                                </>
+                            );
+                        })()}
                         {/* Active States */}
                         <div style={formGroupStyle}>
                             <label style={labelStyle}>Active in States</label>
@@ -240,6 +283,40 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                     />
                                 </div>
                             </>
+                        )}
+
+                        {/* Transport Mode (for non-drone objects) */}
+                        {singleSelectedItem && singleSelectedItem.type !== 'drone' && (
+                            <div style={{ ...formGroupStyle, borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '1rem' }}>
+                                <label style={labelStyle}>Drone Transport</label>
+                                <button
+                                    onClick={() => onGenerateFormation(singleSelectedItem.id)}
+                                    disabled={isSimulating || singleSelectedItem.transportMode}
+                                    style={{
+                                        ...inputStyle,
+                                        cursor: (isSimulating || singleSelectedItem.transportMode) ? 'not-allowed' : 'pointer',
+                                        background: singleSelectedItem.transportMode ? 'var(--accent-color)' : 'var(--bg-tertiary)',
+                                        color: singleSelectedItem.transportMode ? 'white' : 'var(--text-primary)',
+                                        border: '1px solid var(--accent-color)',
+                                        fontWeight: 500,
+                                        opacity: (isSimulating || singleSelectedItem.transportMode) ? 0.6 : 1
+                                    }}
+                                >
+                                    {singleSelectedItem.transportMode ? '✓ Formation Active' : '+ Generate Formation'}
+                                </button>
+                                {singleSelectedItem.assignedDrones?.length > 0 && (
+                                    <div style={{
+                                        marginTop: '0.5rem',
+                                        fontSize: '0.75rem',
+                                        color: 'var(--text-secondary)',
+                                        padding: '0.5rem',
+                                        background: 'var(--bg-primary)',
+                                        borderRadius: '4px'
+                                    }}>
+                                        {singleSelectedItem.assignedDrones.length} drones assigned
+                                    </div>
+                                )}
+                            </div>
                         )}
 
                         {/* Circle properties */}

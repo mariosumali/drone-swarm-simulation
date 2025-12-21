@@ -22,6 +22,12 @@ function App() {
     ]);
     const [currentStateId, setCurrentStateId] = useState(states[0].id);
 
+    // Simulation mode
+    const [isSimulating, setIsSimulating] = useState(false);
+    const [animationProgress, setAnimationProgress] = useState(0);
+    const [playbackSpeed, setPlaybackSpeed] = useState(1);
+
+
     const addItem = (type, x, y) => {
         if (type === 'custom') {
             setDrawingMode({ type: 'custom', points: [{ x, y }], startX: x, startY: y });
@@ -36,6 +42,9 @@ function App() {
                 [currentStateId]: { x, y, rotation: 0 }
             },
             activeStates: [currentStateId],
+            // Transport properties
+            transportMode: false,
+            assignedDrones: [],
             // Default properties based on type
             ...(type === 'rectangle' ? {
                 w: 100,
@@ -44,6 +53,11 @@ function App() {
             } : type === 'circle' ? {
                 radius: 50,
                 weight: 10
+            } : type === 'drone-air' || type === 'drone-ground' ? {
+                type: 'drone',
+                assignedObject: null,
+                formationOffset: null,
+                droneType: type === 'drone-air' ? 'air' : 'ground'
             } : {})
         };
         setItems(prev => [...prev, newItem]);
@@ -227,6 +241,140 @@ function App() {
         }));
     };
 
+    // Simulation functions
+    const startSimulation = () => {
+        setIsSimulating(true);
+        setAnimationProgress(0);
+    };
+
+    const stopSimulation = () => {
+        setIsSimulating(false);
+        setAnimationProgress(0);
+        setCurrentStateId(states[0].id);
+    };
+
+    const toggleSimulation = () => {
+        if (isSimulating) {
+            setIsSimulating(false);
+        } else {
+            startSimulation();
+        }
+    };
+
+    // Formation generation
+    const generateFormation = async (objectId) => {
+        const { calculateFormation, calculateRequiredDrones } = await import('./utils/formationCalculator');
+
+        const object = items.find(i => i.id === objectId);
+        if (!object || object.type === 'drone') return;
+
+        const drones = items.filter(i => i.type === 'drone' && !i.assignedObject);
+        const requiredDrones = calculateRequiredDrones(object);
+
+        if (drones.length < requiredDrones) {
+            alert(`Need ${requiredDrones} drones, but only ${drones.length} available`);
+            return;
+        }
+
+        // Get closest drones
+        const objectPos = object.statePositions[currentStateId];
+        const sortedDrones = drones
+            .map(d => ({
+                drone: d,
+                pos: d.statePositions[currentStateId],
+                distance: Math.sqrt(
+                    Math.pow(d.statePositions[currentStateId].x - objectPos.x, 2) +
+                    Math.pow(d.statePositions[currentStateId].y - objectPos.y, 2)
+                )
+            }))
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, requiredDrones);
+
+        // Separate drones by type
+        const groundDrones = sortedDrones.filter(d => d.drone.droneType === 'ground');
+        const airDrones = sortedDrones.filter(d => d.drone.droneType === 'air');
+
+        // Calculate formation positions for each type
+        const groundFormation = groundDrones.length > 0
+            ? calculateFormation(object, groundDrones.length, 'ground')
+            : [];
+        const airFormation = airDrones.length > 0
+            ? calculateFormation(object, airDrones.length, 'air')
+            : [];
+
+        // Combine formations
+        const allDrones = [...groundDrones, ...airDrones];
+        const formationOffsets = [...groundFormation, ...airFormation];
+
+        // Update object and drones
+        setItems(prev => prev.map(item => {
+            if (item.id === objectId) {
+                return {
+                    ...item,
+                    transportMode: true,
+                    assignedDrones: allDrones.map(d => d.drone.id)
+                };
+            }
+
+            const droneIndex = allDrones.findIndex(d => d.drone.id === item.id);
+            if (droneIndex !== -1) {
+                // Assign drone to object with formation offset
+                const newStatePositions = { ...item.statePositions };
+
+                // For each state where object exists, position drone around it
+                object.activeStates.forEach(stateId => {
+                    const objPos = object.statePositions[stateId];
+                    if (objPos) {
+                        newStatePositions[stateId] = {
+                            x: objPos.x + formationOffsets[droneIndex].x,
+                            y: objPos.y + formationOffsets[droneIndex].y,
+                            rotation: 0
+                        };
+                    }
+                });
+
+                return {
+                    ...item,
+                    assignedObject: objectId,
+                    formationOffset: formationOffsets[droneIndex],
+                    statePositions: newStatePositions,
+                    activeStates: [...new Set([...item.activeStates, ...object.activeStates])]
+                };
+            }
+
+            return item;
+        }));
+    };
+
+    //Animation loop
+    React.useEffect(() => {
+        if (!isSimulating || states.length < 2) return;
+
+        const currentIndex = states.findIndex(s => s.id === currentStateId);
+        const nextIndex = (currentIndex + 1) % states.length;
+
+        const duration = 2000 / playbackSpeed; // 2 seconds per transition
+        const startTime = Date.now();
+
+        const animate = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            setAnimationProgress(progress);
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                // Move to next state
+                setCurrentStateId(states[nextIndex].id);
+                setAnimationProgress(0);
+            }
+        };
+
+        const animationId = requestAnimationFrame(animate);
+        return () => cancelAnimationFrame(animationId);
+    }, [isSimulating, currentStateId, playbackSpeed, states]);
+
     // Keyboard listeners
     React.useEffect(() => {
         const handleKeyDown = (e) => {
@@ -342,6 +490,9 @@ function App() {
                     states={states}
                     currentStateId={currentStateId}
                     onToggleItemInState={toggleItemInState}
+                    isSimulating={isSimulating}
+                    animationProgress={animationProgress}
+                    onGenerateFormation={generateFormation}
                 />
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <div style={{ flex: 1, position: 'relative' }}>
@@ -357,6 +508,9 @@ function App() {
                             onDrawingModeChange={setDrawingMode}
                             onFinishDrawing={finishDrawing}
                             currentStateId={currentStateId}
+                            isSimulating={isSimulating}
+                            animationProgress={animationProgress}
+                            states={states}
                         />
                         <EntityList
                             items={items}
@@ -377,6 +531,12 @@ function App() {
                         onAddState={addState}
                         onDeleteState={deleteState}
                         onUpdateStateName={updateStateName}
+                        isSimulating={isSimulating}
+                        onToggleSimulation={toggleSimulation}
+                        onStopSimulation={stopSimulation}
+                        playbackSpeed={playbackSpeed}
+                        onPlaybackSpeedChange={setPlaybackSpeed}
+                        animationProgress={animationProgress}
                     />
                 </div>
             </div>
