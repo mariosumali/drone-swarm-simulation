@@ -353,6 +353,8 @@ function App() {
                         // Mark that we need to update locked drones
                         updates._updateLockedDrones = true;
                         updates._updatedObjectRef = updatedObject;
+                        // Recalculate drone paths asynchronously
+                        setTimeout(() => recalculateDronePaths(id), 0);
                     }
                 }
 
@@ -609,9 +611,56 @@ function App() {
         }
     };
 
-    // Ground Formation generation
+    // Recalculate drone paths when object moves (for drones with pathType === 'auto')
+    const recalculateDronePaths = async (objectId) => {
+        const { findPath } = await import('./utils/pathfinding');
+
+        const object = items.find(i => i.id === objectId);
+        if (!object || !object.assignedDrones || object.assignedDrones.length === 0) return;
+
+        // Get obstacles for pathfinding
+        const obstacles = items.filter(i =>
+            i.type !== 'drone' &&
+            i.id !== objectId &&
+            i.isObstacle !== false
+        ).map(obs => ({
+            ...obs,
+            _checkStateId: currentStateId
+        }));
+
+        setItems(prev => prev.map(item => {
+            if (!object.assignedDrones.includes(item.id)) return item;
+
+            // For each state transition with pathType 'auto', recalculate path
+            const newStatePositions = { ...item.statePositions };
+
+            for (const stateId of Object.keys(newStatePositions)) {
+                const statePos = newStatePositions[stateId];
+                if (statePos?.pathType === 'auto') {
+                    // Find the previous state
+                    const stateIndex = states.findIndex(s => s.id === stateId);
+                    if (stateIndex > 0) {
+                        const prevStateId = states[stateIndex - 1].id;
+                        const prevPos = item.statePositions[prevStateId];
+                        if (prevPos) {
+                            const autoPath = findPath(prevPos, statePos, obstacles, prevStateId);
+                            newStatePositions[stateId] = {
+                                ...statePos,
+                                customPath: autoPath
+                            };
+                        }
+                    }
+                }
+            }
+
+            return { ...item, statePositions: newStatePositions };
+        }));
+    };
+
+    // Ground Formation generation - creates new state and auto-paths
     const generateGroundFormation = async (objectId) => {
-        const { calculateFormation, calculateRequiredDrones } = await import('./utils/formationCalculator');
+        const { calculateFormation } = await import('./utils/formationCalculator');
+        const { findPath } = await import('./utils/pathfinding');
 
         const object = items.find(i => i.id === objectId);
         if (!object || object.type === 'drone') return;
@@ -639,33 +688,69 @@ function App() {
         // Calculate formation for ground drones
         const formationOffsets = calculateFormation(object, sortedDrones.length, 'ground');
 
-        // Update object and drones
+        // Create new state after current
+        const newStateId = uuidv4();
+        const currentIndex = states.findIndex(s => s.id === currentStateId);
+        const newState = { id: newStateId, name: 'Transport', timestamp: Date.now() };
+
+        // Insert new state after current
+        setStates(prev => [
+            ...prev.slice(0, currentIndex + 1),
+            newState,
+            ...prev.slice(currentIndex + 1)
+        ]);
+
+        // Get obstacles for pathfinding (exclude drones and the target object)
+        const obstacles = items.filter(i =>
+            i.type !== 'drone' &&
+            i.id !== objectId &&
+            i.isObstacle !== false
+        ).map(obs => ({
+            ...obs,
+            _checkStateId: currentStateId
+        }));
+
+        // Update object and drones with new state positions and paths
         setItems(prev => prev.map(item => {
             if (item.id === objectId) {
+                // Copy object position to new state
+                const newStatePositions = { ...item.statePositions };
+                newStatePositions[newStateId] = { ...item.statePositions[currentStateId] };
+
                 return {
                     ...item,
                     transportMode: true,
                     formationLocked: true,
-                    assignedDrones: sortedDrones.map(d => d.drone.id)
+                    assignedDrones: sortedDrones.map(d => d.drone.id),
+                    statePositions: newStatePositions,
+                    activeStates: [...(item.activeStates || []), newStateId].filter((v, i, a) => a.indexOf(v) === i)
                 };
             }
 
             const droneIndex = sortedDrones.findIndex(d => d.drone.id === item.id);
             if (droneIndex !== -1) {
+                const droneCurrentPos = item.statePositions[currentStateId];
+                const targetPos = {
+                    x: objectPos.x + formationOffsets[droneIndex].x,
+                    y: objectPos.y + formationOffsets[droneIndex].y
+                };
+
+                // Generate auto-path from current position to target
+                const autoPath = findPath(droneCurrentPos, targetPos, obstacles, currentStateId);
+
                 const newStatePositions = { ...item.statePositions };
+                // Keep current state position unchanged
+                // Add formation position in new state with auto-path
+                newStatePositions[newStateId] = {
+                    x: targetPos.x,
+                    y: targetPos.y,
+                    rotation: 0,
+                    customPath: autoPath,
+                    pathType: 'auto'
+                };
 
-                const objPos = object.statePositions[currentStateId];
-                if (objPos) {
-                    newStatePositions[currentStateId] = {
-                        x: objPos.x + formationOffsets[droneIndex].x,
-                        y: objPos.y + formationOffsets[droneIndex].y,
-                        rotation: 0
-                    };
-                }
-
-                const activeStates = item.activeStates.includes(currentStateId)
-                    ? item.activeStates
-                    : [...item.activeStates, currentStateId];
+                const activeStates = [...(item.activeStates || []), currentStateId, newStateId]
+                    .filter((v, i, a) => a.indexOf(v) === i);
 
                 return {
                     ...item,
@@ -680,11 +765,15 @@ function App() {
 
             return item;
         }));
+
+        // Switch to new state
+        setCurrentStateId(newStateId);
     };
 
-    // Air Formation generation
+    // Air Formation generation - creates new state and auto-paths
     const generateAirFormation = async (objectId) => {
-        const { calculateFormation, calculateRequiredDrones } = await import('./utils/formationCalculator');
+        const { calculateFormation } = await import('./utils/formationCalculator');
+        const { findPath } = await import('./utils/pathfinding');
 
         const object = items.find(i => i.id === objectId);
         if (!object || object.type === 'drone') return;
@@ -712,33 +801,69 @@ function App() {
         // Calculate formation for air drones
         const formationOffsets = calculateFormation(object, sortedDrones.length, 'air');
 
-        // Update object and drones
+        // Create new state after current
+        const newStateId = uuidv4();
+        const currentIndex = states.findIndex(s => s.id === currentStateId);
+        const newState = { id: newStateId, name: 'Transport', timestamp: Date.now() };
+
+        // Insert new state after current
+        setStates(prev => [
+            ...prev.slice(0, currentIndex + 1),
+            newState,
+            ...prev.slice(currentIndex + 1)
+        ]);
+
+        // Get obstacles for pathfinding (exclude drones and the target object)
+        const obstacles = items.filter(i =>
+            i.type !== 'drone' &&
+            i.id !== objectId &&
+            i.isObstacle !== false
+        ).map(obs => ({
+            ...obs,
+            _checkStateId: currentStateId
+        }));
+
+        // Update object and drones with new state positions and paths
         setItems(prev => prev.map(item => {
             if (item.id === objectId) {
+                // Copy object position to new state
+                const newStatePositions = { ...item.statePositions };
+                newStatePositions[newStateId] = { ...item.statePositions[currentStateId] };
+
                 return {
                     ...item,
                     transportMode: true,
                     formationLocked: true,
-                    assignedDrones: sortedDrones.map(d => d.drone.id)
+                    assignedDrones: sortedDrones.map(d => d.drone.id),
+                    statePositions: newStatePositions,
+                    activeStates: [...(item.activeStates || []), newStateId].filter((v, i, a) => a.indexOf(v) === i)
                 };
             }
 
             const droneIndex = sortedDrones.findIndex(d => d.drone.id === item.id);
             if (droneIndex !== -1) {
+                const droneCurrentPos = item.statePositions[currentStateId];
+                const targetPos = {
+                    x: objectPos.x + formationOffsets[droneIndex].x,
+                    y: objectPos.y + formationOffsets[droneIndex].y
+                };
+
+                // Generate auto-path from current position to target
+                const autoPath = findPath(droneCurrentPos, targetPos, obstacles, currentStateId);
+
                 const newStatePositions = { ...item.statePositions };
+                // Keep current state position unchanged
+                // Add formation position in new state with auto-path
+                newStatePositions[newStateId] = {
+                    x: targetPos.x,
+                    y: targetPos.y,
+                    rotation: 0,
+                    customPath: autoPath,
+                    pathType: 'auto'
+                };
 
-                const objPos = object.statePositions[currentStateId];
-                if (objPos) {
-                    newStatePositions[currentStateId] = {
-                        x: objPos.x + formationOffsets[droneIndex].x,
-                        y: objPos.y + formationOffsets[droneIndex].y,
-                        rotation: 0
-                    };
-                }
-
-                const activeStates = item.activeStates.includes(currentStateId)
-                    ? item.activeStates
-                    : [...item.activeStates, currentStateId];
+                const activeStates = [...(item.activeStates || []), currentStateId, newStateId]
+                    .filter((v, i, a) => a.indexOf(v) === i);
 
                 return {
                     ...item,
@@ -753,6 +878,9 @@ function App() {
 
             return item;
         }));
+
+        // Switch to new state
+        setCurrentStateId(newStateId);
     };
 
     // Unlock formation

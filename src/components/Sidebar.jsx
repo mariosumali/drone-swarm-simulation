@@ -654,10 +654,107 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                             </>
                         )}
 
-                        {/* Drone info */}
+                        {/* Drone info and path controls */}
                         {singleSelectedItem.type === 'drone' && (
-                            <div style={{ padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: '6px', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                                Drones are autonomous and have fixed physical properties in this simulation.
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <div style={{ padding: '0.75rem', background: 'var(--bg-tertiary)', borderRadius: '6px', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                                    {singleSelectedItem.droneType === 'air' ? '✈️ Air Drone' : '🚛 Ground Drone'}
+                                    {singleSelectedItem.assignedObject && (
+                                        <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--accent-color)' }}>
+                                            🔗 Assigned to object
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Path controls for drones with paths */}
+                                {states.map((state, idx) => {
+                                    if (idx === states.length - 1) return null;
+                                    const nextState = states[idx + 1];
+                                    const nextStatePos = singleSelectedItem.statePositions?.[nextState.id];
+                                    const hasAutoPath = nextStatePos?.customPath && nextStatePos.customPath.length > 1;
+                                    const pathType = nextStatePos?.pathType || 'auto';
+
+                                    if (!nextStatePos) return null;
+
+                                    return (
+                                        <div key={`${state.id}_${nextState.id}`} style={{
+                                            padding: '0.5rem',
+                                            background: 'var(--bg-primary)',
+                                            borderRadius: '4px'
+                                        }}>
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                                                {state.name} → {nextState.name}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                                                <select
+                                                    value={pathType}
+                                                    onChange={(e) => {
+                                                        const newPathType = e.target.value;
+                                                        const updatedPos = { ...nextStatePos, pathType: newPathType };
+                                                        if (newPathType === 'direct') {
+                                                            delete updatedPos.customPath;
+                                                        }
+                                                        onUpdateItem(singleSelectedItem.id, {
+                                                            statePositions: {
+                                                                ...singleSelectedItem.statePositions,
+                                                                [nextState.id]: updatedPos
+                                                            }
+                                                        });
+                                                    }}
+                                                    style={{
+                                                        ...inputStyle,
+                                                        fontSize: '0.7rem',
+                                                        padding: '0.25rem 0.5rem',
+                                                        flex: 1
+                                                    }}
+                                                >
+                                                    <option value="direct">Direct</option>
+                                                    <option value="auto">Auto (avoid obstacles)</option>
+                                                    <option value="draw">Custom</option>
+                                                </select>
+                                                {pathType === 'auto' && (
+                                                    <button
+                                                        onClick={() => onAutoDrawPath(singleSelectedItem.id, state.id, nextState.id)}
+                                                        disabled={isSimulating}
+                                                        style={{
+                                                            ...inputStyle,
+                                                            fontSize: '0.7rem',
+                                                            padding: '0.25rem 0.5rem',
+                                                            cursor: isSimulating ? 'not-allowed' : 'pointer',
+                                                            background: 'var(--bg-tertiary)',
+                                                            color: '#10b981',
+                                                            width: 'auto'
+                                                        }}
+                                                    >
+                                                        Recalc
+                                                    </button>
+                                                )}
+                                                {pathType === 'draw' && (
+                                                    <button
+                                                        onClick={() => onStartPathDrawing(singleSelectedItem.id, state.id, nextState.id)}
+                                                        disabled={isSimulating}
+                                                        style={{
+                                                            ...inputStyle,
+                                                            fontSize: '0.7rem',
+                                                            padding: '0.25rem 0.5rem',
+                                                            cursor: isSimulating ? 'not-allowed' : 'pointer',
+                                                            background: 'var(--bg-tertiary)',
+                                                            color: 'var(--accent-color)',
+                                                            width: 'auto'
+                                                        }}
+                                                    >
+                                                        ✏️ Draw
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {hasAutoPath && (
+                                                <div style={{ fontSize: '0.65rem', color: '#10b981', marginTop: '0.25rem' }}>
+                                                    ✓ {nextStatePos.customPath.length} waypoints
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

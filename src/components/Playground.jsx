@@ -28,28 +28,7 @@ export function Playground({
 
     // Get item position (with interpolation during simulation)
     const getItemPosition = (item) => {
-        // Drone locked to object - dynamic position
-        if (item.type === 'drone' && item.lockedToObject && isSimulating) {
-            const parentObj = items.find(i => i.id === item.lockedToObject);
-            if (parentObj) {
-                // Recursively get parent's current position (handling custom paths)
-                const parentPos = getItemPosition(parentObj);
-                const offset = item.relativeOffset || { x: 0, y: 0 };
-
-                // Rotate offset based on parent's rotation
-                const angleRad = (parentPos.rotation || 0) * (Math.PI / 180);
-                const rotatedX = offset.x * Math.cos(angleRad) - offset.y * Math.sin(angleRad);
-                const rotatedY = offset.x * Math.sin(angleRad) + offset.y * Math.cos(angleRad);
-
-                return {
-                    x: parentPos.x + rotatedX,
-                    y: parentPos.y + rotatedY,
-                    rotation: 0
-                };
-            }
-        }
-
-        // Regular item positioning
+        // Regular item positioning (not simulating)
         if (!isSimulating || !item.statePositions) {
             return item.statePositions?.[currentStateId] || { x: 0, y: 0, rotation: 0 };
         }
@@ -64,13 +43,40 @@ export function Playground({
             return currentPos || nextPos || { x: 0, y: 0, rotation: 0 };
         }
 
-        // Check for custom transition path
+        // Check for custom path in the next state's position (new format for drone transport)
+        if (nextPos.customPath && nextPos.customPath.length > 1) {
+            const result = interpolateAlongPath(nextPos.customPath, animationProgress);
+            return {
+                ...result,
+                rotation: interpolate(currentPos.rotation || 0, nextPos.rotation || 0, animationProgress)
+            };
+        }
+
+        // Check for custom transition path (old format)
         const pathKey = `${states[currentStateIndex].id}_to_${states[nextStateIndex].id}`;
         const customPath = item.customTransitionPaths?.[pathKey];
 
         if (customPath && customPath.length > 1) {
-            // Use custom path interpolation
             return interpolateAlongPath(customPath, animationProgress);
+        }
+
+        // Drone locked to object - follow parent position
+        if (item.type === 'drone' && item.lockedToObject) {
+            const parentObj = items.find(i => i.id === item.lockedToObject);
+            if (parentObj) {
+                const parentPos = getItemPosition(parentObj);
+                const offset = item.relativeOffset || { x: 0, y: 0 };
+
+                const angleRad = (parentPos.rotation || 0) * (Math.PI / 180);
+                const rotatedX = offset.x * Math.cos(angleRad) - offset.y * Math.sin(angleRad);
+                const rotatedY = offset.x * Math.sin(angleRad) + offset.y * Math.cos(angleRad);
+
+                return {
+                    x: parentPos.x + rotatedX,
+                    y: parentPos.y + rotatedY,
+                    rotation: 0
+                };
+            }
         }
 
         return {
