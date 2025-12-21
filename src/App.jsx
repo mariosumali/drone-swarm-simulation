@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Undo, Redo, Sun, Moon, Save, FolderOpen, Settings, X, Video, Group, HelpCircle, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
+import { LibraryPanel } from './components/LibraryPanel';
 import { Playground } from './components/Playground';
 import { Timeline } from './components/Timeline';
 import { EntityList } from './components/EntityList';
@@ -30,6 +31,7 @@ function App() {
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
     const [showPathTracking, setShowPathTracking] = useState(true);
     const [showDronePaths, setShowDronePaths] = useState(true);
+    const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
     const [clipboard, setClipboard] = useState([]);
     const [theme, setTheme] = useState(() => {
         const saved = localStorage.getItem('theme');
@@ -65,6 +67,13 @@ function App() {
     useEffect(() => {
         localStorage.setItem('simulationSettings', JSON.stringify(settings));
     }, [settings]);
+
+    // Auto-expand sidebar when an object is selected
+    useEffect(() => {
+        if (selectedIds.size > 0) {
+            setIsSidebarExpanded(true);
+        }
+    }, [selectedIds]);
 
     // Groups state
     const [groups, setGroups] = useState([]);
@@ -1404,26 +1413,45 @@ function App() {
             </header>
 
             <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                <Sidebar
+                {/* Fixed Library + Entities Panel on Left */}
+                <LibraryPanel
                     items={items}
                     selectedIds={selectedIds}
+                    onSelect={setSelectedIds}
                     onUpdateItem={updateItem}
-                    onDelete={deleteSelected}
-                    states={states}
+                    onDelete={(ids) => {
+                        setItems(prev => prev.filter(item => !ids.has(item.id)));
+                        setSelectedIds(new Set());
+                    }}
                     currentStateId={currentStateId}
-                    onToggleItemInState={toggleItemInState}
-                    isSimulating={isSimulating}
-                    animationProgress={animationProgress}
-                    onGenerateGroundFormation={generateGroundFormation}
-                    onGenerateAirFormation={generateAirFormation}
-                    onUnlockFormation={unlockFormation}
-                    onStartPathDrawing={startPathDrawing}
-                    onClearPath={clearTransitionPath}
-                    onAutoDrawPath={autoDrawPath}
-                    pathDrawingMode={pathDrawingMode}
+                    showPathTracking={showPathTracking}
+                    onTogglePathTracking={() => setShowPathTracking(!showPathTracking)}
+                    showDronePaths={showDronePaths}
+                    onToggleDronePaths={() => setShowDronePaths(!showDronePaths)}
                 />
+
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <div style={{ flex: 1, position: 'relative' }}>
+                        <Sidebar
+                            items={items}
+                            selectedIds={selectedIds}
+                            onUpdateItem={updateItem}
+                            onDelete={deleteSelected}
+                            states={states}
+                            currentStateId={currentStateId}
+                            onToggleItemInState={toggleItemInState}
+                            isSimulating={isSimulating}
+                            animationProgress={animationProgress}
+                            onGenerateGroundFormation={generateGroundFormation}
+                            onGenerateAirFormation={generateAirFormation}
+                            onUnlockFormation={unlockFormation}
+                            onStartPathDrawing={startPathDrawing}
+                            onClearPath={clearTransitionPath}
+                            onAutoDrawPath={autoDrawPath}
+                            pathDrawingMode={pathDrawingMode}
+                            isExpanded={isSidebarExpanded}
+                            onToggleExpand={() => setIsSidebarExpanded(!isSidebarExpanded)}
+                        />
                         <Playground
                             items={items}
                             onAddItem={addItem}
@@ -1449,21 +1477,6 @@ function App() {
                                 setItems(prev => prev.filter(item => item.id !== id));
                                 setSelectedIds(new Set());
                             }}
-                        />
-                        <EntityList
-                            items={items}
-                            selectedIds={selectedIds}
-                            onSelect={setSelectedIds}
-                            onUpdateItem={updateItem}
-                            onDelete={(ids) => {
-                                setItems(prev => prev.filter(item => !ids.has(item.id)));
-                                setSelectedIds(new Set());
-                            }}
-                            currentStateId={currentStateId}
-                            showPathTracking={showPathTracking}
-                            onTogglePathTracking={() => setShowPathTracking(!showPathTracking)}
-                            showDronePaths={showDronePaths}
-                            onToggleDronePaths={() => setShowDronePaths(!showDronePaths)}
                         />
                     </div>
                     <Timeline

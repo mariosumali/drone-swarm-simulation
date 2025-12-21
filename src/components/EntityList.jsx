@@ -55,13 +55,13 @@ export function EntityList({ items, selectedIds, onSelect, onUpdateItem, onDelet
         return (
             <div style={{
                 position: 'absolute',
-                right: 0,
+                left: 0,
                 top: '60px',
                 bottom: '80px',
                 width: '50px',
                 background: 'var(--glass-bg)',
                 backdropFilter: 'blur(10px)',
-                borderLeft: '1px solid var(--glass-border)',
+                borderRight: '1px solid var(--glass-border)',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -82,7 +82,7 @@ export function EntityList({ items, selectedIds, onSelect, onUpdateItem, onDelet
                     }}
                     title="Expand Entity List"
                 >
-                    <ChevronLeft size={20} />
+                    <ChevronRight size={20} />
                 </button>
                 <div style={{
                     fontSize: '0.75rem',
@@ -100,12 +100,12 @@ export function EntityList({ items, selectedIds, onSelect, onUpdateItem, onDelet
     return (
         <div style={{
             position: 'absolute',
-            right: 0,
+            left: 0,
             top: '60px',
             bottom: '80px',
             width: '300px',
             background: 'var(--bg-secondary)',
-            borderLeft: '1px solid var(--border-color)',
+            borderRight: '1px solid var(--border-color)',
             display: 'flex',
             flexDirection: 'column',
             zIndex: 100

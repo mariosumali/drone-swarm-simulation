@@ -1,7 +1,7 @@
 import React from 'react';
-import { Plane, Square, Circle, Settings2, Trash2, Pencil, Edit3, Truck } from 'lucide-react';
+import { Plane, Square, Circle, Settings2, Trash2, Pencil, Edit3, Truck, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, currentStateId, onToggleItemInState, isSimulating, animationProgress, onGenerateGroundFormation, onGenerateAirFormation, onUnlockFormation, onStartPathDrawing, onClearPath, onAutoDrawPath, pathDrawingMode }) {
+export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, currentStateId, onToggleItemInState, isSimulating, animationProgress, onGenerateGroundFormation, onGenerateAirFormation, onUnlockFormation, onStartPathDrawing, onClearPath, onAutoDrawPath, pathDrawingMode, isExpanded = true, onToggleExpand }) {
     const handleDragStart = (e, type) => {
         e.dataTransfer.setData('application/react-dnd-type', type);
         e.dataTransfer.effectAllowed = 'copy';
@@ -31,94 +31,86 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
         };
     };
 
+    // Collapsed view
+    if (!isExpanded) {
+        return (
+            <div style={{
+                position: 'absolute',
+                right: 0,
+                top: '60px',
+                bottom: '80px',
+                width: '50px',
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(10px)',
+                borderLeft: '1px solid var(--glass-border)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '1rem 0',
+                gap: '0.5rem',
+                zIndex: 100
+            }}>
+                <button
+                    onClick={onToggleExpand}
+                    style={{
+                        background: 'var(--accent-color)',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '0.5rem',
+                        cursor: 'pointer',
+                        color: 'white',
+                        display: 'flex'
+                    }}
+                    title="Expand Properties"
+                >
+                    <ChevronLeft size={20} />
+                </button>
+                {singleSelectedItem && (
+                    <div style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--accent-color)',
+                        fontWeight: 600,
+                        writingMode: 'vertical-rl',
+                        textOrientation: 'mixed'
+                    }}>
+                        {singleSelectedItem.type}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     return (
         <div style={{
+            position: 'absolute',
+            right: 0,
+            top: '60px',
+            bottom: '80px',
             width: '300px',
-            borderRight: '1px solid var(--border-color)',
+            borderLeft: '1px solid var(--border-color)',
             backgroundColor: 'var(--bg-secondary)',
             display: 'flex',
             flexDirection: 'column',
-            height: '100%',
-            overflowY: 'auto'
+            overflowY: 'auto',
+            zIndex: 100
         }}>
-            <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)' }}>
-                <h2 style={{ fontSize: '0.875rem', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: '1rem' }}>
-                    Library
-                </h2>
-
-                <div style={{ display: 'grid', gap: '0.75rem' }}>
-                    {/* Air Drone */}
-                    <div
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, 'drone-air')}
-                        style={draggableStyle}
-                    >
-                        <div style={{ padding: '0.5rem', background: 'rgba(96, 165, 250, 0.1)', borderRadius: '6px', color: '#60a5fa' }}>
-                            <Plane size={20} />
-                        </div>
-                        <div>
-                            <div style={{ fontWeight: 500 }}>Air Drone</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Surface coverage</div>
-                        </div>
-                    </div>
-
-                    {/* Ground Drone */}
-                    <div
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, 'drone-ground')}
-                        style={draggableStyle}
-                    >
-                        <div style={{ padding: '0.5rem', background: 'rgba(139, 92, 246, 0.1)', borderRadius: '6px', color: '#8b5cf6' }}>
-                            <Truck size={20} />
-                        </div>
-                        <div>
-                            <div style={{ fontWeight: 500 }}>Ground Drone</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Perimeter surround</div>
-                        </div>
-                    </div>
-
-                    <div
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, 'rectangle')}
-                        style={draggableStyle}
-                    >
-                        <div style={{ padding: '0.5rem', background: 'rgba(236, 72, 153, 0.1)', borderRadius: '6px', color: '#f472b6' }}>
-                            <Square size={20} />
-                        </div>
-                        <div>
-                            <div style={{ fontWeight: 500 }}>Rectangle</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Rectangular object</div>
-                        </div>
-                    </div>
-
-                    <div
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, 'circle')}
-                        style={draggableStyle}
-                    >
-                        <div style={{ padding: '0.5rem', background: 'rgba(236, 72, 153, 0.1)', borderRadius: '6px', color: '#f472b6' }}>
-                            <Circle size={20} />
-                        </div>
-                        <div>
-                            <div style={{ fontWeight: 500 }}>Circle</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Circular object</div>
-                        </div>
-                    </div>
-
-                    <div
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, 'custom')}
-                        style={draggableStyle}
-                    >
-                        <div style={{ padding: '0.5rem', background: 'rgba(34, 197, 94, 0.1)', borderRadius: '6px', color: '#4ade80' }}>
-                            <Pencil size={20} />
-                        </div>
-                        <div>
-                            <div style={{ fontWeight: 500 }}>Custom Object</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Draw your shape</div>
-                        </div>
-                    </div>
-                </div>
+            {/* Collapse Button */}
+            <div style={{ padding: '0.5rem', display: 'flex', justifyContent: 'flex-start', borderBottom: '1px solid var(--border-color)' }}>
+                <button
+                    onClick={onToggleExpand}
+                    style={{
+                        background: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        padding: '0.25rem',
+                        cursor: 'pointer',
+                        color: 'var(--text-secondary)',
+                        display: 'flex'
+                    }}
+                    title="Collapse"
+                >
+                    <ChevronRight size={16} />
+                </button>
             </div>
 
             <div style={{ padding: '1.5rem', flex: 1 }}>
