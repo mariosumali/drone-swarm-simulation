@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { Drone } from './Drone';
 import { SimulationObject } from './SimulationObject';
-import { ZoomControls } from './ZoomControls';
 import { interpolateAlongPath } from '../utils/pathInterpolation';
+
 
 export function Playground({
     items, onAddItem, onUpdateItem, onDeleteItem, selectedIds, onSelectionChange,
@@ -10,8 +10,10 @@ export function Playground({
     drawingMode, onDrawingModeChange, onFinishDrawing,
     currentStateId, isSimulating, animationProgress, states, showPathTracking, showDronePaths,
     pathDrawingMode, onPathDrawingModeChange, onFinishPathDrawing,
+    scrollZoomEnabled = true, // Default to true if not passed
     settings = {}
 }) {
+
     const playgroundRef = useRef(null);
     const contentRef = useRef(null);
     const [activeDrag, setActiveDrag] = useState(null);
@@ -19,7 +21,7 @@ export function Playground({
     const [contextMenu, setContextMenu] = useState(null); // { x, y }
     const [panStart, setPanStart] = useState(null);
     const [rotatingItem, setRotatingItem] = useState(null);
-    const [scrollZoomEnabled, setScrollZoomEnabled] = useState(true);
+
 
     // Helper to interpolate values
     const interpolate = (start, end, progress) => {
@@ -64,20 +66,44 @@ export function Playground({
         if (item.type === 'drone' && item.lockedToObject) {
             const parentObj = items.find(i => i.id === item.lockedToObject);
             if (parentObj) {
-                const parentPos = getItemPosition(parentObj);
-                const offset = item.relativeOffset || { x: 0, y: 0 };
+                // Check if the drone is actually "in formation" in the current state
+                // If the stored position is significantly different from the formation position,
+                // it implies an "Entry" or "Exit" state where the drone should move independently.
+                const droneStoredPos = item.statePositions?.[currentStateId];
+                const parentStoredPos = parentObj.statePositions?.[currentStateId];
 
-                const angleRad = (parentPos.rotation || 0) * (Math.PI / 180);
-                const rotatedX = offset.x * Math.cos(angleRad) - offset.y * Math.sin(angleRad);
-                const rotatedY = offset.x * Math.sin(angleRad) + offset.y * Math.cos(angleRad);
+                let isInFormation = true;
 
-                return {
-                    x: parentPos.x + rotatedX,
-                    y: parentPos.y + rotatedY,
-                    rotation: 0
-                };
+                if (droneStoredPos && parentStoredPos) {
+                    const offset = item.relativeOffset || { x: 0, y: 0 };
+                    const angleRad = (parentStoredPos.rotation || 0) * (Math.PI / 180);
+                    const expectedX = parentStoredPos.x + (offset.x * Math.cos(angleRad) - offset.y * Math.sin(angleRad));
+                    const expectedY = parentStoredPos.y + (offset.x * Math.sin(angleRad) + offset.y * Math.cos(angleRad));
+
+                    const dist = Math.hypot(droneStoredPos.x - expectedX, droneStoredPos.y - expectedY);
+                    // Allow 5px tolerance
+                    if (dist > 5) {
+                        isInFormation = false;
+                    }
+                }
+
+                if (isInFormation) {
+                    const parentPos = getItemPosition(parentObj);
+                    const offset = item.relativeOffset || { x: 0, y: 0 };
+
+                    const angleRad = (parentPos.rotation || 0) * (Math.PI / 180);
+                    const rotatedX = offset.x * Math.cos(angleRad) - offset.y * Math.sin(angleRad);
+                    const rotatedY = offset.x * Math.sin(angleRad) + offset.y * Math.cos(angleRad);
+
+                    return {
+                        x: parentPos.x + rotatedX,
+                        y: parentPos.y + rotatedY,
+                        rotation: 0
+                    };
+                }
             }
         }
+
 
         return {
             x: interpolate(currentPos.x, nextPos.x, animationProgress),
@@ -976,12 +1002,6 @@ export function Playground({
                 </div>
             )}
 
-            <ZoomControls
-                viewport={viewport}
-                onViewportChange={onViewportChange}
-                scrollZoomEnabled={scrollZoomEnabled}
-                onToggleScrollZoom={() => setScrollZoomEnabled(prev => !prev)}
-            />
         </div>
     );
 }

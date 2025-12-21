@@ -6,7 +6,9 @@ import { LibraryPanel } from './components/LibraryPanel';
 import { Playground } from './components/Playground';
 import { Timeline } from './components/Timeline';
 import { EntityList } from './components/EntityList';
+import { ZoomControls } from './components/ZoomControls';
 import { generateAutoPath } from './utils/pathfinding';
+
 
 function App() {
     const [items, setItems] = useState([]);
@@ -14,6 +16,7 @@ function App() {
     const [viewport, setViewport] = useState({ zoom: 1, offsetX: 0, offsetY: 0 });
     const [drawingMode, setDrawingMode] = useState(null);
     const [pathDrawingMode, setPathDrawingMode] = useState(null); // { objectId, fromStateId, toStateId, points }
+    const [scrollZoomEnabled, setScrollZoomEnabled] = useState(true);
 
     // History for undo/redo
     const [history, setHistory] = useState([]);
@@ -1422,6 +1425,12 @@ function App() {
                 )}
 
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <ZoomControls
+                        viewport={viewport}
+                        onViewportChange={setViewport}
+                        scrollZoomEnabled={scrollZoomEnabled}
+                        onToggleScrollZoom={() => setScrollZoomEnabled(prev => !prev)}
+                    />
                     <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                         {items.length} Entities
                     </span>
@@ -1571,7 +1580,9 @@ function App() {
                                 setItems(prev => prev.filter(item => item.id !== id));
                                 setSelectedIds(new Set());
                             }}
+                            scrollZoomEnabled={scrollZoomEnabled}
                         />
+
                     </div>
                     <Timeline
                         states={states}

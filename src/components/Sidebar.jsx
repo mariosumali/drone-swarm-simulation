@@ -668,7 +668,26 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
 
                                     if (!nextStatePos) return null;
 
+                                    let isLocked = false;
+                                    if (singleSelectedItem.assignedObject) {
+                                        const obj = items.find(i => i.id === singleSelectedItem.assignedObject);
+                                        const dronePos = singleSelectedItem.statePositions?.[state.id];
+                                        const objPos = obj?.statePositions?.[state.id];
+                                        const offset = singleSelectedItem.relativeOffset;
+
+                                        if (obj && dronePos && objPos && offset) {
+                                            const rotRad = (objPos.rotation || 0) * Math.PI / 180;
+                                            const expX = objPos.x + (offset.x * Math.cos(rotRad) - offset.y * Math.sin(rotRad));
+                                            const expY = objPos.y + (offset.x * Math.sin(rotRad) + offset.y * Math.cos(rotRad));
+                                            const dist = Math.hypot(dronePos.x - expX, dronePos.y - expY);
+                                            // If drone is already at the formation position in the FROM state, 
+                                            // then the movement to NEXT state should be locked (following object)
+                                            isLocked = dist < 2;
+                                        }
+                                    }
+
                                     return (
+
                                         <div key={`${state.id}_${nextState.id}`} style={{
                                             padding: '0.5rem',
                                             background: 'var(--bg-primary)',
@@ -677,75 +696,92 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
                                                 {state.name} → {nextState.name}
                                             </div>
-                                            <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                                                <select
-                                                    value={pathType}
-                                                    onChange={(e) => {
-                                                        const newPathType = e.target.value;
-                                                        const updatedPos = { ...nextStatePos, pathType: newPathType };
-                                                        if (newPathType === 'direct') {
-                                                            delete updatedPos.customPath;
-                                                        }
-                                                        onUpdateItem(singleSelectedItem.id, {
-                                                            statePositions: {
-                                                                ...singleSelectedItem.statePositions,
-                                                                [nextState.id]: updatedPos
-                                                            }
-                                                        });
-                                                    }}
-                                                    style={{
-                                                        ...inputStyle,
-                                                        fontSize: '0.7rem',
-                                                        padding: '0.25rem 0.5rem',
-                                                        flex: 1
-                                                    }}
-                                                >
-                                                    <option value="direct">Direct</option>
-                                                    <option value="auto">Auto (avoid obstacles)</option>
-                                                    <option value="draw">Custom</option>
-                                                </select>
-                                                {pathType === 'auto' && (
-                                                    <button
-                                                        onClick={() => onAutoDrawPath(singleSelectedItem.id, state.id, nextState.id)}
-                                                        disabled={isSimulating}
-                                                        style={{
-                                                            ...inputStyle,
-                                                            fontSize: '0.7rem',
-                                                            padding: '0.25rem 0.5rem',
-                                                            cursor: isSimulating ? 'not-allowed' : 'pointer',
-                                                            background: 'var(--bg-tertiary)',
-                                                            color: '#10b981',
-                                                            width: 'auto'
-                                                        }}
-                                                    >
-                                                        Recalc
-                                                    </button>
-                                                )}
-                                                {pathType === 'draw' && (
-                                                    <button
-                                                        onClick={() => onStartPathDrawing(singleSelectedItem.id, state.id, nextState.id)}
-                                                        disabled={isSimulating}
-                                                        style={{
-                                                            ...inputStyle,
-                                                            fontSize: '0.7rem',
-                                                            padding: '0.25rem 0.5rem',
-                                                            cursor: isSimulating ? 'not-allowed' : 'pointer',
-                                                            background: 'var(--bg-tertiary)',
-                                                            color: 'var(--accent-color)',
-                                                            width: 'auto'
-                                                        }}
-                                                    >
-                                                        ✏️ Draw
-                                                    </button>
-                                                )}
-                                            </div>
-                                            {hasAutoPath && (
-                                                <div style={{ fontSize: '0.65rem', color: '#10b981', marginTop: '0.25rem' }}>
-                                                    ✓ {nextStatePos.customPath.length} waypoints
+
+                                            {isLocked ? (
+                                                <div style={{
+                                                    fontSize: '0.75rem',
+                                                    color: 'var(--text-secondary)',
+                                                    fontStyle: 'italic',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.25rem'
+                                                }}>
+                                                    🔒 Path locked (Formation)
                                                 </div>
+                                            ) : (
+                                                <>
+                                                    <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                                                        <select
+                                                            value={pathType}
+                                                            onChange={(e) => {
+                                                                const newPathType = e.target.value;
+                                                                const updatedPos = { ...nextStatePos, pathType: newPathType };
+                                                                if (newPathType === 'direct') {
+                                                                    delete updatedPos.customPath;
+                                                                }
+                                                                onUpdateItem(singleSelectedItem.id, {
+                                                                    statePositions: {
+                                                                        ...singleSelectedItem.statePositions,
+                                                                        [nextState.id]: updatedPos
+                                                                    }
+                                                                });
+                                                            }}
+                                                            style={{
+                                                                ...inputStyle,
+                                                                fontSize: '0.7rem',
+                                                                padding: '0.25rem 0.5rem',
+                                                                flex: 1
+                                                            }}
+                                                        >
+                                                            <option value="direct">Direct</option>
+                                                            <option value="auto">Auto (avoid obstacles)</option>
+                                                            <option value="draw">Custom</option>
+                                                        </select>
+                                                        {pathType === 'auto' && (
+                                                            <button
+                                                                onClick={() => onAutoDrawPath(singleSelectedItem.id, state.id, nextState.id)}
+                                                                disabled={isSimulating}
+                                                                style={{
+                                                                    ...inputStyle,
+                                                                    fontSize: '0.7rem',
+                                                                    padding: '0.25rem 0.5rem',
+                                                                    cursor: isSimulating ? 'not-allowed' : 'pointer',
+                                                                    background: 'var(--bg-tertiary)',
+                                                                    color: '#10b981',
+                                                                    width: 'auto'
+                                                                }}
+                                                            >
+                                                                Recalc
+                                                            </button>
+                                                        )}
+                                                        {pathType === 'draw' && (
+                                                            <button
+                                                                onClick={() => onStartPathDrawing(singleSelectedItem.id, state.id, nextState.id)}
+                                                                disabled={isSimulating}
+                                                                style={{
+                                                                    ...inputStyle,
+                                                                    fontSize: '0.7rem',
+                                                                    padding: '0.25rem 0.5rem',
+                                                                    cursor: isSimulating ? 'not-allowed' : 'pointer',
+                                                                    background: 'var(--bg-tertiary)',
+                                                                    color: 'var(--accent-color)',
+                                                                    width: 'auto'
+                                                                }}
+                                                            >
+                                                                ✏️ Draw
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    {hasAutoPath && (
+                                                        <div style={{ fontSize: '0.65rem', color: '#10b981', marginTop: '0.25rem' }}>
+                                                            ✓ {nextStatePos.customPath.length} waypoints
+                                                        </div>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                     );
+
                                 })}
                             </div>
                         )}

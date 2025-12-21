@@ -22,52 +22,49 @@ export function ZoomControls({ viewport, onViewportChange, scrollZoomEnabled, on
 
     return (
         <div style={{
-            position: 'absolute',
-            bottom: '1.5rem',
-            right: '1.5rem',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '0.5rem',
-            background: 'var(--glass-bg)',
-            border: '1px solid var(--glass-border)',
-            borderRadius: '8px',
-            padding: '0.5rem',
-            backdropFilter: 'blur(10px)',
-            zIndex: 1000
+            alignItems: 'center',
+            gap: '0.25rem',
+            background: 'var(--bg-tertiary)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '6px',
+            padding: '0.25rem',
+            marginLeft: 'auto'
         }}>
-            <button
-                onClick={handleZoomIn}
-                title="Zoom In"
-                style={controlButtonStyle}
-            >
-                <ZoomIn size={18} />
-            </button>
-
-            <div style={{
-                fontSize: '0.75rem',
-                color: 'var(--text-secondary)',
-                textAlign: 'center',
-                padding: '0.25rem'
-            }}>
-                {Math.round(viewport.zoom * 100)}%
-            </div>
-
             <button
                 onClick={handleZoomOut}
                 title="Zoom Out"
                 style={controlButtonStyle}
             >
-                <ZoomOut size={18} />
+                <ZoomOut size={16} />
             </button>
 
-            <div style={{ height: '1px', background: 'var(--border-color)', margin: '0.25rem 0' }} />
+            <div style={{
+                fontSize: '0.75rem',
+                color: 'var(--text-secondary)',
+                minWidth: '3.5rem',
+                textAlign: 'center',
+                fontVariantNumeric: 'tabular-nums'
+            }}>
+                {Math.round(viewport.zoom * 100)}%
+            </div>
+
+            <button
+                onClick={handleZoomIn}
+                title="Zoom In"
+                style={controlButtonStyle}
+            >
+                <ZoomIn size={16} />
+            </button>
+
+            <div style={{ width: '1px', height: '16px', background: 'var(--border-color)', margin: '0 0.25rem' }} />
 
             <button
                 onClick={handleReset}
                 title="Reset View"
                 style={controlButtonStyle}
             >
-                <Maximize2 size={18} />
+                <Maximize2 size={16} />
             </button>
 
             <button
@@ -75,22 +72,22 @@ export function ZoomControls({ viewport, onViewportChange, scrollZoomEnabled, on
                 title={scrollZoomEnabled ? "Disable Scroll Zoom" : "Enable Scroll Zoom"}
                 style={{
                     ...controlButtonStyle,
-                    background: scrollZoomEnabled ? 'var(--accent-color)' : 'var(--bg-tertiary)',
-                    color: scrollZoomEnabled ? 'white' : 'var(--text-primary)'
+                    background: scrollZoomEnabled ? 'var(--accent-color)' : 'transparent',
+                    color: scrollZoomEnabled ? 'white' : 'var(--text-secondary)'
                 }}
             >
-                <Mouse size={18} />
+                <Mouse size={16} />
             </button>
         </div>
     );
 }
 
 const controlButtonStyle = {
-    padding: '0.5rem',
-    background: 'var(--bg-tertiary)',
-    border: '1px solid var(--border-color)',
-    borderRadius: '6px',
-    color: 'var(--text-primary)',
+    padding: '0.25rem',
+    background: 'transparent',
+    border: 'none',
+    borderRadius: '4px',
+    color: 'var(--text-secondary)',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
