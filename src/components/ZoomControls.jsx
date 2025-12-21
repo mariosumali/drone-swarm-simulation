@@ -1,7 +1,7 @@
 import React from 'react';
-import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, Mouse } from 'lucide-react';
 
-export function ZoomControls({ viewport, onViewportChange }) {
+export function ZoomControls({ viewport, onViewportChange, scrollZoomEnabled, onToggleScrollZoom }) {
     const handleZoomIn = () => {
         onViewportChange(prev => ({
             ...prev,
@@ -68,6 +68,18 @@ export function ZoomControls({ viewport, onViewportChange }) {
                 style={controlButtonStyle}
             >
                 <Maximize2 size={18} />
+            </button>
+
+            <button
+                onClick={onToggleScrollZoom}
+                title={scrollZoomEnabled ? "Disable Scroll Zoom" : "Enable Scroll Zoom"}
+                style={{
+                    ...controlButtonStyle,
+                    background: scrollZoomEnabled ? 'var(--accent-color)' : 'var(--bg-tertiary)',
+                    color: scrollZoomEnabled ? 'white' : 'var(--text-primary)'
+                }}
+            >
+                <Mouse size={18} />
             </button>
         </div>
     );

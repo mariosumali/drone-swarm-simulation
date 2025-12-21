@@ -5,6 +5,7 @@ import { Sidebar } from './components/Sidebar';
 import { Playground } from './components/Playground';
 import { Timeline } from './components/Timeline';
 import { EntityList } from './components/EntityList';
+import { generateAutoPath } from './utils/pathfinding';
 
 function App() {
     const [items, setItems] = useState([]);
@@ -161,6 +162,32 @@ function App() {
                 return {
                     ...item,
                     customTransitionPaths: newPaths
+                };
+            }
+            return item;
+        }));
+    };
+
+    const autoDrawPath = (objectId, fromStateId, toStateId) => {
+        const object = items.find(i => i.id === objectId);
+        if (!object) return;
+
+        const path = generateAutoPath(object, fromStateId, toStateId, items);
+        if (!path || path.length < 2) {
+            console.warn('AutoPath: Could not generate path');
+            return;
+        }
+
+        const pathKey = `${fromStateId}_to_${toStateId}`;
+
+        setItems(prev => prev.map(item => {
+            if (item.id === objectId) {
+                return {
+                    ...item,
+                    customTransitionPaths: {
+                        ...(item.customTransitionPaths || {}),
+                        [pathKey]: path
+                    }
                 };
             }
             return item;
@@ -753,7 +780,7 @@ function App() {
                         fontSize: '0.875rem',
                         color: '#f59e0b'
                     }}>
-                        Path Drawing Mode - Click to add waypoints, Enter to finish, Esc to cancel
+                        ✏️ Drawing Custom Path — Click on green dot to start, drag to draw, release to finish
                     </div>
                 )}
             </header>
@@ -774,6 +801,7 @@ function App() {
                     onUnlockFormation={unlockFormation}
                     onStartPathDrawing={startPathDrawing}
                     onClearPath={clearTransitionPath}
+                    onAutoDrawPath={autoDrawPath}
                     pathDrawingMode={pathDrawingMode}
                 />
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>

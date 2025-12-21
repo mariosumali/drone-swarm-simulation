@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plane, Square, Circle, Settings2, Trash2, Pencil, Edit3, Truck } from 'lucide-react';
 
-export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, currentStateId, onToggleItemInState, isSimulating, animationProgress, onGenerateGroundFormation, onGenerateAirFormation, onUnlockFormation, onStartPathDrawing, onClearPath, pathDrawingMode }) {
+export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, currentStateId, onToggleItemInState, isSimulating, animationProgress, onGenerateGroundFormation, onGenerateAirFormation, onUnlockFormation, onStartPathDrawing, onClearPath, onAutoDrawPath, pathDrawingMode }) {
     const handleDragStart = (e, type) => {
         e.dataTransfer.setData('application/react-dnd-type', type);
         e.dataTransfer.effectAllowed = 'copy';
@@ -280,8 +280,9 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                     <label style={labelStyle}>Width</label>
                                     <input
                                         type="number"
-                                        value={singleSelectedItem.w || 100}
-                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { w: parseInt(e.target.value) || 10 })}
+                                        value={singleSelectedItem.w ?? ''}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { w: e.target.value === '' ? '' : parseInt(e.target.value) })}
+                                        onBlur={(e) => { if (e.target.value === '' || isNaN(parseInt(e.target.value))) onUpdateItem(singleSelectedItem.id, { w: 100 }); }}
                                         style={inputStyle}
                                     />
                                 </div>
@@ -290,8 +291,9 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                     <label style={labelStyle}>Height</label>
                                     <input
                                         type="number"
-                                        value={singleSelectedItem.h || 100}
-                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { h: parseInt(e.target.value) || 10 })}
+                                        value={singleSelectedItem.h ?? ''}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { h: e.target.value === '' ? '' : parseInt(e.target.value) })}
+                                        onBlur={(e) => { if (e.target.value === '' || isNaN(parseInt(e.target.value))) onUpdateItem(singleSelectedItem.id, { h: 100 }); }}
                                         style={inputStyle}
                                     />
                                 </div>
@@ -300,8 +302,9 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                     <label style={labelStyle}>Weight (kg)</label>
                                     <input
                                         type="number"
-                                        value={singleSelectedItem.weight || 10}
-                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { weight: parseFloat(e.target.value) || 0 })}
+                                        value={singleSelectedItem.weight ?? ''}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { weight: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                                        onBlur={(e) => { if (e.target.value === '' || isNaN(parseFloat(e.target.value))) onUpdateItem(singleSelectedItem.id, { weight: 10 }); }}
                                         step="0.1"
                                         style={inputStyle}
                                     />
@@ -311,8 +314,8 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                     <label style={labelStyle}>Rotation (°)</label>
                                     <input
                                         type="number"
-                                        value={Math.round(singleSelectedItem.statePositions?.[currentStateId]?.rotation || 0)}
-                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { rotation: parseInt(e.target.value) || 0 })}
+                                        value={Math.round(singleSelectedItem.statePositions?.[currentStateId]?.rotation ?? 0)}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { rotation: e.target.value === '' ? 0 : parseInt(e.target.value) })}
                                         style={inputStyle}
                                     />
                                 </div>
@@ -501,6 +504,24 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                                     {hasCustomPath ? '✏️ Edit' : '➕ Draw'} Path
                                                 </button>
 
+                                                <button
+                                                    onClick={() => onAutoDrawPath(singleSelectedItem.id, state.id, nextState.id)}
+                                                    disabled={isSimulating || isDrawing}
+                                                    title="Auto-generate obstacle-avoiding path"
+                                                    style={{
+                                                        ...inputStyle,
+                                                        cursor: (isSimulating || isDrawing) ? 'not-allowed' : 'pointer',
+                                                        background: 'var(--bg-tertiary)',
+                                                        color: '#10b981',
+                                                        border: '1px solid var(--border-color)',
+                                                        fontSize: '0.75rem',
+                                                        padding: '0.375rem',
+                                                        opacity: isSimulating ? 0.6 : 1
+                                                    }}
+                                                >
+                                                    🤖 Auto
+                                                </button>
+
                                                 {hasCustomPath && (
                                                     <button
                                                         onClick={() => onClearPath(singleSelectedItem.id, state.id, nextState.id)}
@@ -533,8 +554,9 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                     <label style={labelStyle}>Radius</label>
                                     <input
                                         type="number"
-                                        value={singleSelectedItem.radius || 50}
-                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { radius: parseInt(e.target.value) || 10 })}
+                                        value={singleSelectedItem.radius ?? ''}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { radius: e.target.value === '' ? '' : parseInt(e.target.value) })}
+                                        onBlur={(e) => { if (e.target.value === '' || isNaN(parseInt(e.target.value))) onUpdateItem(singleSelectedItem.id, { radius: 50 }); }}
                                         style={inputStyle}
                                     />
                                 </div>
@@ -543,8 +565,9 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                     <label style={labelStyle}>Weight (kg)</label>
                                     <input
                                         type="number"
-                                        value={singleSelectedItem.weight || 10}
-                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { weight: parseFloat(e.target.value) || 0 })}
+                                        value={singleSelectedItem.weight ?? ''}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { weight: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                                        onBlur={(e) => { if (e.target.value === '' || isNaN(parseFloat(e.target.value))) onUpdateItem(singleSelectedItem.id, { weight: 10 }); }}
                                         step="0.1"
                                         style={inputStyle}
                                     />
@@ -554,8 +577,8 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                     <label style={labelStyle}>Rotation (°)</label>
                                     <input
                                         type="number"
-                                        value={Math.round(singleSelectedItem.statePositions?.[currentStateId]?.rotation || 0)}
-                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { rotation: parseInt(e.target.value) || 0 })}
+                                        value={Math.round(singleSelectedItem.statePositions?.[currentStateId]?.rotation ?? 0)}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { rotation: e.target.value === '' ? 0 : parseInt(e.target.value) })}
                                         style={inputStyle}
                                     />
                                 </div>

@@ -17,6 +17,7 @@ export function Playground({
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState(null);
     const [rotatingItem, setRotatingItem] = useState(null);
+    const [scrollZoomEnabled, setScrollZoomEnabled] = useState(true);
 
     // Helper to interpolate values
     const interpolate = (start, end, progress) => {
@@ -25,36 +26,24 @@ export function Playground({
 
     // Get item position (with interpolation during simulation)
     const getItemPosition = (item) => {
-        // For locked drones during simulation, calculate position relative to their object
-        if (item.lockedToObject && isSimulating && item.relativeOffset) {
-            const object = items.find(i => i.id === item.lockedToObject);
-            if (object) {
-                const currentStateIndex = states.findIndex(s => s.id === currentStateId);
-                const nextStateIndex = (currentStateIndex + 1) % states.length;
+        // Drone locked to object - dynamic position
+        if (item.type === 'drone' && item.lockedToObject && isSimulating) {
+            const parentObj = items.find(i => i.id === item.lockedToObject);
+            if (parentObj) {
+                // Recursively get parent's current position (handling custom paths)
+                const parentPos = getItemPosition(parentObj);
+                const offset = item.relativeOffset || { x: 0, y: 0 };
 
-                const currentObjPos = object.statePositions[states[currentStateIndex].id];
-                const nextObjPos = object.statePositions[states[nextStateIndex].id];
+                // Rotate offset based on parent's rotation
+                const angleRad = (parentPos.rotation || 0) * (Math.PI / 180);
+                const rotatedX = offset.x * Math.cos(angleRad) - offset.y * Math.sin(angleRad);
+                const rotatedY = offset.x * Math.sin(angleRad) + offset.y * Math.cos(angleRad);
 
-                if (currentObjPos && nextObjPos) {
-                    // Interpolate object position
-                    const objX = interpolate(currentObjPos.x, nextObjPos.x, animationProgress);
-                    const objY = interpolate(currentObjPos.y, nextObjPos.y, animationProgress);
-                    const objRotation = interpolate(currentObjPos.rotation || 0, nextObjPos.rotation || 0, animationProgress);
-
-                    // Apply rotation to offset
-                    const rad = (objRotation * Math.PI) / 180;
-                    const cos = Math.cos(rad);
-                    const sin = Math.sin(rad);
-
-                    const rotatedX = item.relativeOffset.x * cos - item.relativeOffset.y * sin;
-                    const rotatedY = item.relativeOffset.x * sin + item.relativeOffset.y * cos;
-
-                    return {
-                        x: objX + rotatedX,
-                        y: objY + rotatedY,
-                        rotation: 0
-                    };
-                }
+                return {
+                    x: parentPos.x + rotatedX,
+                    y: parentPos.y + rotatedY,
+                    rotation: 0
+                };
             }
         }
 
@@ -106,6 +95,7 @@ export function Playground({
     };
 
     const handleWheel = (e) => {
+        if (!scrollZoomEnabled) return;
         e.preventDefault();
 
         const rect = playgroundRef.current.getBoundingClientRect();
@@ -237,10 +227,33 @@ export function Playground({
         }
     };
 
+    const handleResizeMouseDown = (e, item, direction) => {
+        e.stopPropagation();
+        const pos = getItemPosition(item);
+
+        // Default width/height if not present (e.g. circles with radius)
+        const currentW = item.w || (item.radius ? item.radius * 2 : 100);
+        const currentH = item.h || (item.radius ? item.radius * 2 : 100);
+
+        setActiveDrag({
+            type: 'resize',
+            itemId: item.id,
+            startX: pos.x,
+            startY: pos.y,
+            startW: currentW,
+            startH: currentH,
+            startRotation: pos.rotation || 0,
+            mouseStartX: e.clientX,
+            mouseStartY: e.clientY,
+            direction
+        });
+    };
+
     const handleMouseMove = (e) => {
         if (isPanning && panStart) {
-            const dx = e.clientX - panStart.x;
-            const dy = e.clientY - panStart.y;
+            const sensitivity = 0.5; // Lower = slower pan
+            const dx = (e.clientX - panStart.x) * sensitivity;
+            const dy = (e.clientY - panStart.y) * sensitivity;
             onViewportChange({
                 ...viewport,
                 offsetX: viewport.offsetX + dx,
@@ -250,8 +263,72 @@ export function Playground({
             return;
         }
 
+        // Resizing Logic
+        if (activeDrag?.type === 'resize') {
+            const item = items.find(i => i.id === activeDrag.itemId);
+            if (!item) return;
+
+            // Calculate mouse delta in screen space
+            let dx_screen = (e.clientX - activeDrag.mouseStartX) / viewport.zoom;
+            let dy_screen = (e.clientY - activeDrag.mouseStartY) / viewport.zoom;
+
+            // Rotate delta to object's local coordinate space
+            const angleRad = -(activeDrag.startRotation * Math.PI / 180);
+            const dx_local = dx_screen * Math.cos(angleRad) - dy_screen * Math.sin(angleRad);
+            const dy_local = dx_screen * Math.sin(angleRad) + dy_screen * Math.cos(angleRad);
+
+            let newW = activeDrag.startW;
+            let newH = activeDrag.startH;
+            let newX_local = 0;
+            let newY_local = 0;
+            const dir = activeDrag.direction;
+
+            // Apply resize based on direction
+            const minSize = 20;
+
+            // Width changes
+            if (dir.includes('e')) {
+                newW = Math.max(minSize, activeDrag.startW + dx_local);
+                newX_local = (newW - activeDrag.startW) / 2;
+            } else if (dir.includes('w')) {
+                newW = Math.max(minSize, activeDrag.startW - dx_local);
+                newX_local = -(newW - activeDrag.startW) / 2;
+            }
+
+            // Height changes
+            if (dir.includes('s')) {
+                newH = Math.max(minSize, activeDrag.startH + dy_local);
+                newY_local = (newH - activeDrag.startH) / 2;
+            } else if (dir.includes('n')) {
+                newH = Math.max(minSize, activeDrag.startH - dy_local);
+                newY_local = -(newH - activeDrag.startH) / 2;
+            }
+
+            // Convert local shift back to world space for the center position update
+            const finalAngle = (activeDrag.startRotation * Math.PI / 180);
+            const shiftX = newX_local * Math.cos(finalAngle) - newY_local * Math.sin(finalAngle);
+            const shiftY = newX_local * Math.sin(finalAngle) + newY_local * Math.cos(finalAngle);
+
+            const updates = {
+                w: Math.round(newW),
+                h: Math.round(newH),
+                x: activeDrag.startX + shiftX,
+                y: activeDrag.startY + shiftY
+            };
+
+            // For circles, we also update radius property for backward compatibility (max dim / 2)
+            // But w/h will be primary for rendering now
+            if (item.type === 'circle') {
+                updates.radius = Math.round(Math.max(newW, newH) / 2);
+            }
+
+            onUpdateItem(item.id, updates);
+            return;
+        }
+
         // Rotation
         if (rotatingItem) {
+
             const item = visibleItems.find(i => i.id === rotatingItem);
             if (!item) return;
 
@@ -319,18 +396,18 @@ export function Playground({
         } else if (activeDrag.type === 'box') {
             setActiveDrag(prev => ({ ...prev, currentWorld }));
 
-            const boxLeft = Math.min(activeDrag.startWorld.x, currentWorld.x);
-            const boxTop = Math.min(activeDrag.startWorld.y, currentWorld.y);
-            const boxRight = Math.max(activeDrag.startWorld.x, currentWorld.x);
-            const boxBottom = Math.max(activeDrag.startWorld.y, currentWorld.y);
+            const x1 = Math.min(activeDrag.startWorld.x, currentWorld.x);
+            const x2 = Math.max(activeDrag.startWorld.x, currentWorld.x);
+            const y1 = Math.min(activeDrag.startWorld.y, currentWorld.y);
+            const y2 = Math.max(activeDrag.startWorld.y, currentWorld.y);
 
             const newSelection = new Set(activeDrag.initialSelection);
 
             visibleItems.forEach(item => {
                 const pos = getItemPosition(item);
                 if (
-                    pos.x >= boxLeft && pos.x <= boxRight &&
-                    pos.y >= boxTop && pos.y <= boxBottom
+                    pos.x >= x1 && pos.x <= x2 &&
+                    pos.y >= y1 && pos.y <= y2
                 ) {
                     newSelection.add(item.id);
                 }
@@ -340,9 +417,8 @@ export function Playground({
     };
 
     const handleMouseUp = () => {
-        setActiveDrag(null);
         setIsPanning(false);
-        setPanStart(null);
+        setActiveDrag(null);
         setRotatingItem(null);
     };
 
@@ -357,6 +433,22 @@ export function Playground({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [drawingMode]);
 
+    // Global drag handlers
+    React.useEffect(() => {
+        if (!activeDrag && !isPanning && !rotatingItem) return;
+
+        const onMouseMove = (e) => handleMouseMove(e);
+        const onMouseUp = (e) => handleMouseUp(e);
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+
+        return () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+    }, [activeDrag, viewport, items, drawingMode, pathDrawingMode, rotatingItem, isPanning, panStart]); // Add dependencies needed by handlers
+
     return (
         <div
             ref={playgroundRef}
@@ -364,19 +456,10 @@ export function Playground({
             onDragOver={handleDragOver}
             onMouseDown={handleBackgroundMouseDown}
             onDoubleClick={handleDoubleClick}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
             onWheel={handleWheel}
-            style={{
-                width: '100%',
-                height: '100%',
-                position: 'relative',
-                overflow: 'hidden',
-                background: 'var(--bg-primary)',
-                cursor: isPanning ? 'grabbing' : (drawingMode ? 'crosshair' : 'default'),
-                userSelect: 'none'
-            }}
+            className="w-full h-full relative bg-gray-900 border border-gray-700 rounded-lg overflow-hidden select-none"
+            tabIndex={0}
+            style={{ outline: 'none' }}
         >
             <div
                 ref={contentRef}
@@ -465,6 +548,7 @@ export function Playground({
                                         data={item}
                                         selected={selectedIds.has(item.id)}
                                         dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
+                                        onResizeMouseDown={handleResizeMouseDown}
                                     />
                                 )}
 
@@ -612,11 +696,16 @@ export function Playground({
                     textAlign: 'center'
                 }}>
                     <p>Drag items from the sidebar to start</p>
-                    <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Mouse wheel to zoom • Space+Drag to pan</p>
+                    <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Scroll to zoom • Drag to pan • Shift+Drag to select</p>
                 </div>
             )}
 
-            <ZoomControls viewport={viewport} onViewportChange={onViewportChange} />
+            <ZoomControls
+                viewport={viewport}
+                onViewportChange={onViewportChange}
+                scrollZoomEnabled={scrollZoomEnabled}
+                onToggleScrollZoom={() => setScrollZoomEnabled(prev => !prev)}
+            />
         </div>
     );
 }
