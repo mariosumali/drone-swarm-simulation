@@ -403,6 +403,15 @@ function App() {
     const updateItem = (id, updates) => {
         setItems(prev => prev.map(item => {
             if (item.id === id) {
+                // Check if this is a drone being moved
+                const isDrone = item.type === 'drone';
+                const positionChanged = 'x' in updates || 'y' in updates;
+
+                // If drone position changed and it has auto paths, trigger recalculation
+                if (isDrone && positionChanged) {
+                    setTimeout(() => recalculateSingleDronePath(id), 0);
+                }
+
                 // Check if this is an object with locked drones
                 const isObjectWithLockedDrones = item.formationLocked && item.assignedDrones?.length > 0;
 
@@ -690,6 +699,51 @@ function App() {
         }
     };
 
+    // Recalculate a single drone's paths when it's moved directly
+    const recalculateSingleDronePath = async (droneId) => {
+        const { findPath } = await import('./utils/pathfinding');
+
+        const drone = items.find(i => i.id === droneId);
+        if (!drone || drone.type !== 'drone') return;
+
+        // Get obstacles (all non-drone objects)
+        const obstacles = items.filter(i =>
+            i.type !== 'drone' &&
+            i.isObstacle !== false
+        );
+
+        setItems(prev => prev.map(item => {
+            if (item.id !== droneId) return item;
+
+            const newStatePositions = { ...item.statePositions };
+
+            for (const stateId of Object.keys(newStatePositions)) {
+                const statePos = newStatePositions[stateId];
+                // Only recalculate 'auto' paths
+                if (statePos?.pathType === 'auto') {
+                    const stateIndex = states.findIndex(s => s.id === stateId);
+                    if (stateIndex > 0) {
+                        const prevStateId = states[stateIndex - 1].id;
+                        const prevPos = item.statePositions[prevStateId];
+                        if (prevPos) {
+                            const obstaclesForState = obstacles.map(obs => ({
+                                ...obs,
+                                _checkStateId: prevStateId
+                            }));
+                            const autoPath = findPath(prevPos, statePos, obstaclesForState, prevStateId);
+                            newStatePositions[stateId] = {
+                                ...statePos,
+                                customPath: autoPath
+                            };
+                        }
+                    }
+                }
+            }
+
+            return { ...item, statePositions: newStatePositions };
+        }));
+    };
+
     // Recalculate drone paths when object moves (for drones with pathType === 'auto')
     const recalculateDronePaths = async (objectId) => {
         const { findPath } = await import('./utils/pathfinding');
@@ -697,15 +751,12 @@ function App() {
         const object = items.find(i => i.id === objectId);
         if (!object || !object.assignedDrones || object.assignedDrones.length === 0) return;
 
-        // Get obstacles for pathfinding
+        // Get obstacles for pathfinding (without pre-setting _checkStateId)
         const obstacles = items.filter(i =>
             i.type !== 'drone' &&
             i.id !== objectId &&
             i.isObstacle !== false
-        ).map(obs => ({
-            ...obs,
-            _checkStateId: currentStateId
-        }));
+        );
 
         setItems(prev => prev.map(item => {
             if (!object.assignedDrones.includes(item.id)) return item;
@@ -722,7 +773,12 @@ function App() {
                         const prevStateId = states[stateIndex - 1].id;
                         const prevPos = item.statePositions[prevStateId];
                         if (prevPos) {
-                            const autoPath = findPath(prevPos, statePos, obstacles, prevStateId);
+                            // Prepare obstacles with the correct state ID for this transition
+                            const obstaclesForState = obstacles.map(obs => ({
+                                ...obs,
+                                _checkStateId: prevStateId
+                            }));
+                            const autoPath = findPath(prevPos, statePos, obstaclesForState, prevStateId);
                             newStatePositions[stateId] = {
                                 ...statePos,
                                 customPath: autoPath
