@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plane, Box, Settings2, Trash2 } from 'lucide-react';
+import { Plane, Square, Circle, Settings2, Trash2, Pencil, Edit3 } from 'lucide-react';
 
 export function Sidebar({ items, selectedIds, onUpdateItem, onDelete }) {
     const handleDragStart = (e, type) => {
@@ -44,15 +44,43 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete }) {
 
                     <div
                         draggable
-                        onDragStart={(e) => handleDragStart(e, 'object')}
+                        onDragStart={(e) => handleDragStart(e, 'rectangle')}
                         style={draggableStyle}
                     >
                         <div style={{ padding: '0.5rem', background: 'rgba(236, 72, 153, 0.1)', borderRadius: '6px', color: '#f472b6' }}>
-                            <Box size={20} />
+                            <Square size={20} />
                         </div>
                         <div>
-                            <div style={{ fontWeight: 500 }}>Object</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Physical entity</div>
+                            <div style={{ fontWeight: 500 }}>Rectangle</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Rectangular object</div>
+                        </div>
+                    </div>
+
+                    <div
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, 'circle')}
+                        style={draggableStyle}
+                    >
+                        <div style={{ padding: '0.5rem', background: 'rgba(236, 72, 153, 0.1)', borderRadius: '6px', color: '#f472b6' }}>
+                            <Circle size={20} />
+                        </div>
+                        <div>
+                            <div style={{ fontWeight: 500 }}>Circle</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Circular object</div>
+                        </div>
+                    </div>
+
+                    <div
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, 'custom')}
+                        style={draggableStyle}
+                    >
+                        <div style={{ padding: '0.5rem', background: 'rgba(34, 197, 94, 0.1)', borderRadius: '6px', color: '#4ade80' }}>
+                            <Pencil size={20} />
+                        </div>
+                        <div>
+                            <div style={{ fontWeight: 500 }}>Custom Object</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Draw your shape</div>
                         </div>
                     </div>
                 </div>
@@ -115,47 +143,34 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete }) {
                             </div>
                         </div>
 
-                        {singleSelectedItem.type === 'object' && (
+                        {/* Rectangle properties */}
+                        {singleSelectedItem.type === 'rectangle' && (
                             <>
                                 <div style={formGroupStyle}>
-                                    <label style={labelStyle}>Shape</label>
-                                    <select
-                                        value={singleSelectedItem.shape || 'rectangle'}
-                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { shape: e.target.value })}
-                                        style={selectStyle}
-                                    >
-                                        <option value="rectangle">Rectangle</option>
-                                        <option value="circle">Circle</option>
-                                    </select>
-                                </div>
-
-                                <div style={formGroupStyle}>
-                                    <label style={labelStyle}>Width / Radius</label>
+                                    <label style={labelStyle}>Width</label>
                                     <input
                                         type="number"
-                                        value={singleSelectedItem.w || 50}
+                                        value={singleSelectedItem.w || 100}
                                         onChange={(e) => onUpdateItem(singleSelectedItem.id, { w: parseInt(e.target.value) || 10 })}
                                         style={inputStyle}
                                     />
                                 </div>
 
-                                {singleSelectedItem.shape !== 'circle' && (
-                                    <div style={formGroupStyle}>
-                                        <label style={labelStyle}>Height</label>
-                                        <input
-                                            type="number"
-                                            value={singleSelectedItem.h || 50}
-                                            onChange={(e) => onUpdateItem(singleSelectedItem.id, { h: parseInt(e.target.value) || 10 })}
-                                            style={inputStyle}
-                                        />
-                                    </div>
-                                )}
+                                <div style={formGroupStyle}>
+                                    <label style={labelStyle}>Height</label>
+                                    <input
+                                        type="number"
+                                        value={singleSelectedItem.h || 100}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { h: parseInt(e.target.value) || 10 })}
+                                        style={inputStyle}
+                                    />
+                                </div>
 
                                 <div style={formGroupStyle}>
                                     <label style={labelStyle}>Weight (kg)</label>
                                     <input
                                         type="number"
-                                        value={singleSelectedItem.weight || 1.0}
+                                        value={singleSelectedItem.weight || 10}
                                         onChange={(e) => onUpdateItem(singleSelectedItem.id, { weight: parseFloat(e.target.value) || 0 })}
                                         step="0.1"
                                         style={inputStyle}
@@ -163,6 +178,82 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete }) {
                                 </div>
                             </>
                         )}
+
+                        {/* Circle properties */}
+                        {singleSelectedItem.type === 'circle' && (
+                            <>
+                                <div style={formGroupStyle}>
+                                    <label style={labelStyle}>Radius</label>
+                                    <input
+                                        type="number"
+                                        value={singleSelectedItem.radius || 50}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { radius: parseInt(e.target.value) || 10 })}
+                                        style={inputStyle}
+                                    />
+                                </div>
+
+                                <div style={formGroupStyle}>
+                                    <label style={labelStyle}>Weight (kg)</label>
+                                    <input
+                                        type="number"
+                                        value={singleSelectedItem.weight || 10}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { weight: parseFloat(e.target.value) || 0 })}
+                                        step="0.1"
+                                        style={inputStyle}
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                        {/* Custom object properties */}
+                        {singleSelectedItem.type === 'custom' && (
+                            <>
+                                <div style={formGroupStyle}>
+                                    <label style={labelStyle}>Points</label>
+                                    <div style={{
+                                        padding: '0.5rem',
+                                        background: 'var(--bg-primary)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '6px',
+                                        fontSize: '0.875rem',
+                                        color: 'var(--text-secondary)'
+                                    }}>
+                                        {singleSelectedItem.customPath?.length || 0} vertices
+                                    </div>
+                                </div>
+
+                                <button
+                                    style={{
+                                        ...inputStyle,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.5rem',
+                                        background: 'var(--bg-tertiary)',
+                                        border: '1px solid var(--accent-color)',
+                                        color: 'var(--accent-color)',
+                                        fontWeight: 500
+                                    }}
+                                    onClick={() => alert('Edit points feature coming soon!')}
+                                >
+                                    <Edit3 size={16} /> Edit Points
+                                </button>
+
+                                <div style={formGroupStyle}>
+                                    <label style={labelStyle}>Weight (kg)</label>
+                                    <input
+                                        type="number"
+                                        value={singleSelectedItem.weight || 10}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { weight: parseFloat(e.target.value) || 0 })}
+                                        step="0.1"
+                                        style={inputStyle}
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                        {/* Drone info */}
                         {singleSelectedItem.type === 'drone' && (
                             <div style={{ padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: '6px', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                                 Drones are autonomous and have fixed physical properties in this simulation.
