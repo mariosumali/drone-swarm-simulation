@@ -1282,6 +1282,17 @@ function App() {
                             >
                                 Save & Close
                             </button>
+
+                            <div style={{
+                                marginTop: '1.5rem',
+                                paddingTop: '1rem',
+                                borderTop: '1px solid var(--border-color)',
+                                textAlign: 'center',
+                                fontSize: '0.75rem',
+                                color: 'var(--text-secondary)'
+                            }}>
+                                Created by Mario Sumali
+                            </div>
                         </div>
                     </div>
                 </div>
