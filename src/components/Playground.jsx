@@ -304,6 +304,7 @@ export function Playground({
                                     selected={selectedIds.has(item.id)}
                                     dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
                                     droneType={item.droneType}
+                                    isInFormation={!!item.assignedObject}
                                 />
                             ) : (
                                 <SimulationObject

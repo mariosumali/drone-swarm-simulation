@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function Drone({ selected, dragging, droneType = 'air' }) {
+export function Drone({ selected, dragging, droneType = 'air', isInFormation = false }) {
     const isGround = droneType === 'ground';
     const bodyColor = isGround ? '#8b5cf6' : '#60a5fa';
     const rotorColor = isGround ? '#a78bfa' : '#93c5fd';
@@ -23,6 +23,17 @@ export function Drone({ selected, dragging, droneType = 'air' }) {
                     border: '2px solid var(--accent-color)',
                     borderRadius: '50%',
                     animation: 'pulse 2s infinite'
+                }} />
+            )}
+
+            {/* Formation Indicator */}
+            {isInFormation && !selected && (
+                <div style={{
+                    position: 'absolute',
+                    top: -6, left: -6, right: -6, bottom: -6,
+                    border: '2px dashed var(--accent-color)',
+                    borderRadius: '50%',
+                    opacity: 0.6
                 }} />
             )}
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plane, Square, Circle, Settings2, Trash2, Pencil, Edit3, Truck } from 'lucide-react';
 
-export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, currentStateId, onToggleItemInState, isSimulating, animationProgress, onGenerateFormation }) {
+export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, currentStateId, onToggleItemInState, isSimulating, animationProgress, onGenerateGroundFormation, onGenerateAirFormation }) {
     const handleDragStart = (e, type) => {
         e.dataTransfer.setData('application/react-dnd-type', type);
         e.dataTransfer.effectAllowed = 'copy';
@@ -289,21 +289,53 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                         {singleSelectedItem && singleSelectedItem.type !== 'drone' && (
                             <div style={{ ...formGroupStyle, borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '1rem' }}>
                                 <label style={labelStyle}>Drone Transport</label>
-                                <button
-                                    onClick={() => onGenerateFormation(singleSelectedItem.id)}
-                                    disabled={isSimulating || singleSelectedItem.transportMode}
-                                    style={{
-                                        ...inputStyle,
-                                        cursor: (isSimulating || singleSelectedItem.transportMode) ? 'not-allowed' : 'pointer',
-                                        background: singleSelectedItem.transportMode ? 'var(--accent-color)' : 'var(--bg-tertiary)',
-                                        color: singleSelectedItem.transportMode ? 'white' : 'var(--text-primary)',
-                                        border: '1px solid var(--accent-color)',
-                                        fontWeight: 500,
-                                        opacity: (isSimulating || singleSelectedItem.transportMode) ? 0.6 : 1
-                                    }}
-                                >
-                                    {singleSelectedItem.transportMode ? '✓ Formation Active' : '+ Generate Formation'}
-                                </button>
+
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    {/* Ground Formation Button */}
+                                    <button
+                                        onClick={() => onGenerateGroundFormation(singleSelectedItem.id)}
+                                        disabled={isSimulating}
+                                        style={{
+                                            ...inputStyle,
+                                            flex: 1,
+                                            cursor: isSimulating ? 'not-allowed' : 'pointer',
+                                            background: 'var(--bg-tertiary)',
+                                            color: '#8b5cf6',
+                                            border: '1px solid #8b5cf6',
+                                            fontWeight: 500,
+                                            opacity: isSimulating ? 0.6 : 1,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '0.25rem'
+                                        }}
+                                    >
+                                        🚗 Ground
+                                    </button>
+
+                                    {/* Air Formation Button */}
+                                    <button
+                                        onClick={() => onGenerateAirFormation(singleSelectedItem.id)}
+                                        disabled={isSimulating}
+                                        style={{
+                                            ...inputStyle,
+                                            flex: 1,
+                                            cursor: isSimulating ? 'not-allowed' : 'pointer',
+                                            background: 'var(--bg-tertiary)',
+                                            color: '#60a5fa',
+                                            border: '1px solid #60a5fa',
+                                            fontWeight: 500,
+                                            opacity: isSimulating ? 0.6 : 1,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '0.25rem'
+                                        }}
+                                    >
+                                        ✈️ Air
+                                    </button>
+                                </div>
+
                                 {singleSelectedItem.assignedDrones?.length > 0 && (
                                     <div style={{
                                         marginTop: '0.5rem',
@@ -313,7 +345,37 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                         background: 'var(--bg-primary)',
                                         borderRadius: '4px'
                                     }}>
-                                        {singleSelectedItem.assignedDrones.length} drones assigned
+                                        <div style={{ fontWeight: 500, marginBottom: '0.25rem' }}>
+                                            {singleSelectedItem.assignedDrones.length} drones in current state
+                                        </div>
+                                        <div style={{
+                                            display: 'flex',
+                                            flexWrap: 'wrap',
+                                            gap: '0.25rem',
+                                            marginTop: '0.5rem'
+                                        }}>
+                                            {singleSelectedItem.assignedDrones.map(droneId => {
+                                                const drone = items.find(i => i.id === droneId);
+                                                const droneColor = drone?.droneType === 'ground' ? '#8b5cf6' : '#60a5fa';
+                                                const droneIcon = drone?.droneType === 'ground' ? '🚗' : '✈️';
+                                                return (
+                                                    <div
+                                                        key={droneId}
+                                                        style={{
+                                                            padding: '2px 6px',
+                                                            background: 'var(--bg-tertiary)',
+                                                            border: `1px solid ${droneColor}`,
+                                                            borderRadius: '3px',
+                                                            fontSize: '0.7rem',
+                                                            color: droneColor,
+                                                            fontFamily: 'monospace'
+                                                        }}
+                                                    >
+                                                        {droneIcon} {droneId.substring(0, 8)}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 )}
                             </div>

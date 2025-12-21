@@ -129,7 +129,31 @@ function App() {
 
     const deleteSelected = () => {
         if (selectedIds.size === 0) return;
-        setItems(prev => prev.filter(item => !selectedIds.has(item.id)));
+
+        const deletedIds = Array.from(selectedIds);
+
+        setItems(prev => prev
+            .filter(item => !selectedIds.has(item.id))
+            .map(item => {
+                // If this object has assigned drones, check if any were deleted
+                if (item.assignedDrones && item.assignedDrones.length > 0) {
+                    const anyDroneDeleted = item.assignedDrones.some(droneId => deletedIds.includes(droneId));
+
+                    // If ANY drone was deleted, break the formation
+                    if (anyDroneDeleted) {
+                        return {
+                            ...item,
+                            transportMode: false,
+                            assignedDrones: []
+                        };
+                    }
+                }
+
+                // If this is a drone that was assigned to an object, we already filtered it out
+                return item;
+            })
+        );
+
         setSelectedIds(new Set());
     };
 
@@ -261,22 +285,21 @@ function App() {
         }
     };
 
-    // Formation generation
-    const generateFormation = async (objectId) => {
+    // Ground Formation generation
+    const generateGroundFormation = async (objectId) => {
         const { calculateFormation, calculateRequiredDrones } = await import('./utils/formationCalculator');
 
         const object = items.find(i => i.id === objectId);
         if (!object || object.type === 'drone') return;
 
-        const drones = items.filter(i => i.type === 'drone' && !i.assignedObject);
-        const requiredDrones = calculateRequiredDrones(object);
+        const drones = items.filter(i => i.type === 'drone' && !i.assignedObject && i.droneType === 'ground');
 
-        if (drones.length < requiredDrones) {
-            alert(`Need ${requiredDrones} drones, but only ${drones.length} available`);
+        if (drones.length === 0) {
+            alert('No available ground drones');
             return;
         }
 
-        // Get closest drones
+        // Get closest ground drones
         const objectPos = object.statePositions[currentStateId];
         const sortedDrones = drones
             .map(d => ({
@@ -287,24 +310,10 @@ function App() {
                     Math.pow(d.statePositions[currentStateId].y - objectPos.y, 2)
                 )
             }))
-            .sort((a, b) => a.distance - b.distance)
-            .slice(0, requiredDrones);
+            .sort((a, b) => a.distance - b.distance);
 
-        // Separate drones by type
-        const groundDrones = sortedDrones.filter(d => d.drone.droneType === 'ground');
-        const airDrones = sortedDrones.filter(d => d.drone.droneType === 'air');
-
-        // Calculate formation positions for each type
-        const groundFormation = groundDrones.length > 0
-            ? calculateFormation(object, groundDrones.length, 'ground')
-            : [];
-        const airFormation = airDrones.length > 0
-            ? calculateFormation(object, airDrones.length, 'air')
-            : [];
-
-        // Combine formations
-        const allDrones = [...groundDrones, ...airDrones];
-        const formationOffsets = [...groundFormation, ...airFormation];
+        // Calculate formation for ground drones
+        const formationOffsets = calculateFormation(object, sortedDrones.length, 'ground');
 
         // Update object and drones
         setItems(prev => prev.map(item => {
@@ -312,33 +321,103 @@ function App() {
                 return {
                     ...item,
                     transportMode: true,
-                    assignedDrones: allDrones.map(d => d.drone.id)
+                    assignedDrones: sortedDrones.map(d => d.drone.id)
                 };
             }
 
-            const droneIndex = allDrones.findIndex(d => d.drone.id === item.id);
+            const droneIndex = sortedDrones.findIndex(d => d.drone.id === item.id);
             if (droneIndex !== -1) {
-                // Assign drone to object with formation offset
                 const newStatePositions = { ...item.statePositions };
 
-                // For each state where object exists, position drone around it
-                object.activeStates.forEach(stateId => {
-                    const objPos = object.statePositions[stateId];
-                    if (objPos) {
-                        newStatePositions[stateId] = {
-                            x: objPos.x + formationOffsets[droneIndex].x,
-                            y: objPos.y + formationOffsets[droneIndex].y,
-                            rotation: 0
-                        };
-                    }
-                });
+                const objPos = object.statePositions[currentStateId];
+                if (objPos) {
+                    newStatePositions[currentStateId] = {
+                        x: objPos.x + formationOffsets[droneIndex].x,
+                        y: objPos.y + formationOffsets[droneIndex].y,
+                        rotation: 0
+                    };
+                }
+
+                const activeStates = item.activeStates.includes(currentStateId)
+                    ? item.activeStates
+                    : [...item.activeStates, currentStateId];
 
                 return {
                     ...item,
                     assignedObject: objectId,
                     formationOffset: formationOffsets[droneIndex],
                     statePositions: newStatePositions,
-                    activeStates: [...new Set([...item.activeStates, ...object.activeStates])]
+                    activeStates
+                };
+            }
+
+            return item;
+        }));
+    };
+
+    // Air Formation generation
+    const generateAirFormation = async (objectId) => {
+        const { calculateFormation, calculateRequiredDrones } = await import('./utils/formationCalculator');
+
+        const object = items.find(i => i.id === objectId);
+        if (!object || object.type === 'drone') return;
+
+        const drones = items.filter(i => i.type === 'drone' && !i.assignedObject && i.droneType === 'air');
+
+        if (drones.length === 0) {
+            alert('No available air drones');
+            return;
+        }
+
+        // Get closest air drones
+        const objectPos = object.statePositions[currentStateId];
+        const sortedDrones = drones
+            .map(d => ({
+                drone: d,
+                pos: d.statePositions[currentStateId],
+                distance: Math.sqrt(
+                    Math.pow(d.statePositions[currentStateId].x - objectPos.x, 2) +
+                    Math.pow(d.statePositions[currentStateId].y - objectPos.y, 2)
+                )
+            }))
+            .sort((a, b) => a.distance - b.distance);
+
+        // Calculate formation for air drones
+        const formationOffsets = calculateFormation(object, sortedDrones.length, 'air');
+
+        // Update object and drones
+        setItems(prev => prev.map(item => {
+            if (item.id === objectId) {
+                return {
+                    ...item,
+                    transportMode: true,
+                    assignedDrones: sortedDrones.map(d => d.drone.id)
+                };
+            }
+
+            const droneIndex = sortedDrones.findIndex(d => d.drone.id === item.id);
+            if (droneIndex !== -1) {
+                const newStatePositions = { ...item.statePositions };
+
+                const objPos = object.statePositions[currentStateId];
+                if (objPos) {
+                    newStatePositions[currentStateId] = {
+                        x: objPos.x + formationOffsets[droneIndex].x,
+                        y: objPos.y + formationOffsets[droneIndex].y,
+                        rotation: 0
+                    };
+                }
+
+                const activeStates = item.activeStates.includes(currentStateId)
+                    ? item.activeStates
+                    : [...item.activeStates, currentStateId];
+
+                return {
+                    ...item,
+                    assignedObject: objectId,
+                    formationOffset: formationOffsets[droneIndex],
+                    statePositions: newStatePositions,
+                    activeStates
                 };
             }
 
@@ -492,7 +571,8 @@ function App() {
                     onToggleItemInState={toggleItemInState}
                     isSimulating={isSimulating}
                     animationProgress={animationProgress}
-                    onGenerateFormation={generateFormation}
+                    onGenerateGroundFormation={generateGroundFormation}
+                    onGenerateAirFormation={generateAirFormation}
                 />
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <div style={{ flex: 1, position: 'relative' }}>
