@@ -1191,11 +1191,16 @@ function App() {
                     <button
                         onClick={() => {
                             const data = {
-                                version: 1,
+                                version: 2,
+                                savedAt: new Date().toISOString(),
                                 items,
                                 states,
                                 currentStateId,
-                                viewport
+                                viewport,
+                                settings,
+                                showPathTracking,
+                                showDronePaths,
+                                playbackSpeed
                             };
                             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                             const url = URL.createObjectURL(blob);
@@ -1234,10 +1239,14 @@ function App() {
                                             if (data.states) setStates(data.states);
                                             if (data.currentStateId) setCurrentStateId(data.currentStateId);
                                             if (data.viewport) setViewport(data.viewport);
+                                            if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
+                                            if (data.showPathTracking !== undefined) setShowPathTracking(data.showPathTracking);
+                                            if (data.showDronePaths !== undefined) setShowDronePaths(data.showDronePaths);
+                                            if (data.playbackSpeed) setPlaybackSpeed(data.playbackSpeed);
                                             setSelectedIds(new Set());
                                             setHistory([]);
                                             setHistoryIndex(-1);
-                                            console.log('Simulation loaded successfully');
+                                            console.log(`Simulation loaded successfully (v${data.version || 1})`);
                                         } catch (err) {
                                             console.error('Failed to load simulation:', err);
                                             alert('Failed to load simulation file');
