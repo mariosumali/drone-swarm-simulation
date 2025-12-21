@@ -79,11 +79,36 @@ button {
 button:hover {
     border-color: var(--accent-color);
     background-color: var(--bg-secondary);
+    transform: translateY(-1px);
+}
+
+button:active {
+    transform: translateY(0);
 }
 
 button:focus,
 button:focus-visible {
-    outline: 4px auto -webkit-focus-ring-color;
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Input styles */
+input,
+select {
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus,
+select:focus {
+    outline: none;
+    border-color: var(--accent-color) !important;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 /* Scrollbar */
@@ -103,4 +128,24 @@ button:focus-visible {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--border-color);
+}
+
+/* Selection styles */
+::selection {
+    background: var(--accent-color);
+    color: white;
+}
+
+/* Tooltip-like title improvements */
+[title] {
+    position: relative;
+}
+
+/* Smooth transitions for all interactive elements */
+a,
+button,
+input,
+select,
+textarea {
+    transition: all 0.2s ease;
 }

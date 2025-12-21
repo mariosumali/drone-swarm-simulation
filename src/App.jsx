@@ -777,6 +777,42 @@ function App() {
                     console.log('Pasted', newItems.length, 'items');
                 }
             }
+
+            // Escape to deselect
+            if (e.key === 'Escape') {
+                setSelectedIds(new Set());
+                if (drawingMode) onSetDrawingMode(null);
+                if (pathDrawingMode) onSetPathDrawingMode(null);
+            }
+
+            // Select All (Ctrl+A / Cmd+A)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+                if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+                e.preventDefault();
+                setSelectedIds(new Set(items.map(item => item.id)));
+            }
+
+            // Duplicate (Ctrl+D / Cmd+D)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+                if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+                if (selectedIds.size > 0) {
+                    e.preventDefault();
+                    const selectedItems = items.filter(item => selectedIds.has(item.id));
+                    const offset = 30;
+                    const newItems = selectedItems.map(item => {
+                        const newId = uuidv4();
+                        const newStatePositions = {};
+                        if (item.statePositions) {
+                            for (const [stateId, pos] of Object.entries(item.statePositions)) {
+                                newStatePositions[stateId] = { ...pos, x: pos.x + offset, y: pos.y + offset };
+                            }
+                        }
+                        return { ...item, id: newId, statePositions: newStatePositions };
+                    });
+                    setItems(prev => [...prev, ...newItems]);
+                    setSelectedIds(new Set(newItems.map(item => item.id)));
+                }
+            }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
