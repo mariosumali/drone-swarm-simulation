@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plane, Square, Circle, Settings2, Trash2, Pencil, Edit3 } from 'lucide-react';
 
-export function Sidebar({ items, selectedIds, onUpdateItem, onDelete }) {
+export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, currentStateId, onToggleItemInState }) {
     const handleDragStart = (e, type) => {
         e.dataTransfer.setData('application/react-dnd-type', type);
         e.dataTransfer.effectAllowed = 'copy';
@@ -127,7 +127,7 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete }) {
                                 <label style={labelStyle}>X Position</label>
                                 <input
                                     type="number"
-                                    value={Math.round(singleSelectedItem.x)}
+                                    value={Math.round(singleSelectedItem.statePositions?.[currentStateId]?.x || 0)}
                                     onChange={(e) => onUpdateItem(singleSelectedItem.id, { x: parseInt(e.target.value) || 0 })}
                                     style={inputStyle}
                                 />
@@ -136,10 +136,63 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete }) {
                                 <label style={labelStyle}>Y Position</label>
                                 <input
                                     type="number"
-                                    value={Math.round(singleSelectedItem.y)}
+                                    value={Math.round(singleSelectedItem.statePositions?.[currentStateId]?.y || 0)}
                                     onChange={(e) => onUpdateItem(singleSelectedItem.id, { y: parseInt(e.target.value) || 0 })}
                                     style={inputStyle}
                                 />
+                            </div>
+                        </div>
+
+                        {/* Active States */}
+                        <div style={formGroupStyle}>
+                            <label style={labelStyle}>Active in States</label>
+                            <div style={{
+                                padding: '0.75rem',
+                                background: 'var(--bg-primary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '6px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.5rem'
+                            }}>
+                                {states.map(state => (
+                                    <label
+                                        key={state.id}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem',
+                                            cursor: 'pointer',
+                                            fontSize: '0.875rem',
+                                            color: 'var(--text-primary)'
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={singleSelectedItem.activeStates?.includes(state.id) || false}
+                                            onChange={() => onToggleItemInState(singleSelectedItem.id, state.id)}
+                                            style={{ cursor: 'pointer' }}
+                                        />
+                                        <span style={{
+                                            flex: 1,
+                                            color: state.id === currentStateId ? 'var(--accent-color)' : 'var(--text-primary)',
+                                            fontWeight: state.id === currentStateId ? 600 : 400
+                                        }}>
+                                            {state.name}
+                                        </span>
+                                        {state.id === currentStateId && (
+                                            <span style={{
+                                                fontSize: '0.75rem',
+                                                color: 'var(--accent-color)',
+                                                background: 'rgba(99, 102, 241, 0.1)',
+                                                padding: '0.125rem 0.5rem',
+                                                borderRadius: '4px'
+                                            }}>
+                                                Current
+                                            </span>
+                                        )}
+                                    </label>
+                                ))}
                             </div>
                         </div>
 

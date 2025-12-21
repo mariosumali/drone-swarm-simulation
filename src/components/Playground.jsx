@@ -6,7 +6,8 @@ import { ZoomControls } from './ZoomControls';
 export function Playground({
     items, onAddItem, onUpdateItem, selectedIds, onSelectionChange,
     viewport, onViewportChange,
-    drawingMode, onDrawingModeChange, onFinishDrawing
+    drawingMode, onDrawingModeChange, onFinishDrawing,
+    currentStateId
 }) {
     const playgroundRef = useRef(null);
     const contentRef = useRef(null);
@@ -14,20 +15,27 @@ export function Playground({
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState(null);
 
-    // Convert screen coords to world coords
+    // Get item position for current state
+    const getItemPosition = (item) => {
+        return item.statePositions?.[currentStateId] || { x: 0, y: 0 };
+    };
+
+    // Filter items that exist in current state
+    const visibleItems = items.filter(item =>
+        item.activeStates?.includes(currentStateId)
+    );
+
     const screenToWorld = (screenX, screenY) => {
         const rect = playgroundRef.current.getBoundingClientRect();
         const screenRelX = screenX - rect.left;
         const screenRelY = screenY - rect.top;
 
-        // Account for viewport transformation
         const worldX = (screenRelX - viewport.offsetX) / viewport.zoom;
         const worldY = (screenRelY - viewport.offsetY) / viewport.zoom;
 
         return { x: worldX, y: worldY };
     };
 
-    // Zoom handler
     const handleWheel = (e) => {
         e.preventDefault();
 
@@ -35,11 +43,9 @@ export function Playground({
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        // Zoom centered on mouse
         const delta = e.deltaY > 0 ? 0.9 : 1.1;
         const newZoom = Math.max(0.1, Math.min(5, viewport.zoom * delta));
 
-        // Adjust offset so zoom is centered on mouse
         const zoomChange = newZoom / viewport.zoom;
         const newOffsetX = mouseX - (mouseX - viewport.offsetX) * zoomChange;
         const newOffsetY = mouseY - (mouseY - viewport.offsetY) * zoomChange;
@@ -51,7 +57,6 @@ export function Playground({
         });
     };
 
-    // Drop from Sidebar
     const handleDrop = (e) => {
         e.preventDefault();
         const type = e.dataTransfer.getData('application/react-dnd-type');
@@ -66,11 +71,9 @@ export function Playground({
         e.dataTransfer.dropEffect = 'copy';
     };
 
-    // Item drag
     const handleItemMouseDown = (e, item) => {
         e.stopPropagation();
 
-        // Don't drag if in drawing mode
         if (drawingMode) return;
 
         let newSelection = new Set(selectedIds);
@@ -85,20 +88,21 @@ export function Playground({
 
         setActiveDrag({
             type: 'item',
-            items: items.filter(i => newSelection.has(i.id)).map(i => ({
-                id: i.id,
-                startX: i.x,
-                startY: i.y
-            })),
+            items: visibleItems.filter(i => newSelection.has(i.id)).map(i => {
+                const pos = getItemPosition(i);
+                return {
+                    id: i.id,
+                    startX: pos.x,
+                    startY: pos.y
+                };
+            }),
             mouseStartWorld: screenToWorld(e.clientX, e.clientY)
         });
     };
 
-    // Background interaction
     const handleBackgroundMouseDown = (e) => {
         if (e.target !== playgroundRef.current && e.target !== contentRef.current) return;
 
-        // Drawing mode - add point
         if (drawingMode) {
             const world = screenToWorld(e.clientX, e.clientY);
             onDrawingModeChange({
@@ -108,14 +112,12 @@ export function Playground({
             return;
         }
 
-        // Pan mode (Space key or middle mouse)
         if (e.button === 1 || e.spaceKey) {
             setIsPanning(true);
             setPanStart({ x: e.clientX, y: e.clientY });
             return;
         }
 
-        // Selection box
         if (!e.shiftKey) {
             onSelectionChange(new Set());
         }
@@ -130,13 +132,12 @@ export function Playground({
     };
 
     const handleDoubleClick = (e) => {
-        if (drawingMode && e.target === playgroundRef.current || e.target === contentRef.current) {
+        if (drawingMode && (e.target === playgroundRef.current || e.target === contentRef.current)) {
             onFinishDrawing();
         }
     };
 
     const handleMouseMove = (e) => {
-        // Pan
         if (isPanning && panStart) {
             const dx = e.clientX - panStart.x;
             const dy = e.clientY - panStart.y;
@@ -173,10 +174,11 @@ export function Playground({
 
             const newSelection = new Set(activeDrag.initialSelection);
 
-            items.forEach(item => {
+            visibleItems.forEach(item => {
+                const pos = getItemPosition(item);
                 if (
-                    item.x >= boxLeft && item.x <= boxRight &&
-                    item.y >= boxTop && item.y <= boxBottom
+                    pos.x >= boxLeft && pos.x <= boxRight &&
+                    pos.y >= boxTop && pos.y <= boxBottom
                 ) {
                     newSelection.add(item.id);
                 }
@@ -191,7 +193,6 @@ export function Playground({
         setPanStart(null);
     };
 
-    // Track space key for panning
     React.useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.code === 'Space' && !drawingMode) {
@@ -224,7 +225,6 @@ export function Playground({
                 userSelect: 'none'
             }}
         >
-            {/* Transformed content layer */}
             <div
                 ref={contentRef}
                 style={{
@@ -240,34 +240,35 @@ export function Playground({
                     backgroundPosition: '0 0'
                 }}
             >
-                {/* Items */}
-                {items.map(item => (
-                    <div
-                        key={item.id}
-                        style={{
-                            position: 'absolute',
-                            left: item.x,
-                            top: item.y,
-                            zIndex: selectedIds.has(item.id) ? 10 : 1
-                        }}
-                        onMouseDown={(e) => handleItemMouseDown(e, item)}
-                    >
-                        {item.type === 'drone' ? (
-                            <Drone
-                                selected={selectedIds.has(item.id)}
-                                dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
-                            />
-                        ) : (
-                            <SimulationObject
-                                data={item}
-                                selected={selectedIds.has(item.id)}
-                                dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
-                            />
-                        )}
-                    </div>
-                ))}
+                {visibleItems.map(item => {
+                    const pos = getItemPosition(item);
+                    return (
+                        <div
+                            key={item.id}
+                            style={{
+                                position: 'absolute',
+                                left: pos.x,
+                                top: pos.y,
+                                zIndex: selectedIds.has(item.id) ? 10 : 1
+                            }}
+                            onMouseDown={(e) => handleItemMouseDown(e, item)}
+                        >
+                            {item.type === 'drone' ? (
+                                <Drone
+                                    selected={selectedIds.has(item.id)}
+                                    dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
+                                />
+                            ) : (
+                                <SimulationObject
+                                    data={item}
+                                    selected={selectedIds.has(item.id)}
+                                    dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
+                                />
+                            )}
+                        </div>
+                    );
+                })}
 
-                {/* Selection Box */}
                 {activeDrag?.type === 'box' && (
                     <div style={{
                         position: 'absolute',
@@ -282,7 +283,6 @@ export function Playground({
                     }} />
                 )}
 
-                {/* Drawing preview */}
                 {drawingMode && drawingMode.points.length > 0 && (
                     <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 200 }}>
                         <polyline
@@ -299,8 +299,7 @@ export function Playground({
                 )}
             </div>
 
-            {/* Empty state */}
-            {items.length === 0 && !drawingMode && (
+            {visibleItems.length === 0 && !drawingMode && (
                 <div style={{
                     position: 'absolute',
                     top: '50%', left: '50%',

@@ -3,6 +3,8 @@ import { Layout } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
 import { Playground } from './components/Playground';
+import { Timeline } from './components/Timeline';
+import { EntityList } from './components/EntityList';
 
 function App() {
     const [items, setItems] = useState([]);
@@ -10,9 +12,14 @@ function App() {
     const [viewport, setViewport] = useState({ zoom: 1, offsetX: 0, offsetY: 0 });
     const [drawingMode, setDrawingMode] = useState(null);
 
+    // State management
+    const [states, setStates] = useState([
+        { id: uuidv4(), name: 'Initial State', timestamp: 0 }
+    ]);
+    const [currentStateId, setCurrentStateId] = useState(states[0].id);
+
     const addItem = (type, x, y) => {
         if (type === 'custom') {
-            // Start drawing mode
             setDrawingMode({ type: 'custom', points: [{ x, y }], startX: x, startY: y });
             return;
         }
@@ -20,8 +27,11 @@ function App() {
         const newItem = {
             id: uuidv4(),
             type,
-            x,
-            y,
+            // Store positions per state
+            statePositions: {
+                [currentStateId]: { x, y }
+            },
+            activeStates: [currentStateId],
             // Default properties based on type
             ...(type === 'rectangle' ? {
                 w: 100,
@@ -42,7 +52,6 @@ function App() {
             return;
         }
 
-        // Calculate bounding box
         const xs = drawingMode.points.map(p => p.x);
         const ys = drawingMode.points.map(p => p.y);
         const minX = Math.min(...xs);
@@ -52,7 +61,6 @@ function App() {
         const centerX = (minX + maxX) / 2;
         const centerY = (minY + maxY) / 2;
 
-        // Convert to relative coordinates
         const relativePoints = drawingMode.points.map(p => ({
             x: p.x - centerX,
             y: p.y - centerY
@@ -61,8 +69,10 @@ function App() {
         const newItem = {
             id: uuidv4(),
             type: 'custom',
-            x: centerX,
-            y: centerY,
+            statePositions: {
+                [currentStateId]: { x: centerX, y: centerY }
+            },
+            activeStates: [currentStateId],
             customPath: relativePoints,
             w: maxX - minX,
             h: maxY - minY,
@@ -75,9 +85,27 @@ function App() {
     };
 
     const updateItem = (id, updates) => {
-        setItems(prev => prev.map(item =>
-            item.id === id ? { ...item, ...updates } : item
-        ));
+        setItems(prev => prev.map(item => {
+            if (item.id !== id) return item;
+
+            // If updating x or y, update state position
+            if ('x' in updates || 'y' in updates) {
+                const currentPos = item.statePositions[currentStateId] || { x: 0, y: 0 };
+                return {
+                    ...item,
+                    statePositions: {
+                        ...item.statePositions,
+                        [currentStateId]: {
+                            x: updates.x !== undefined ? updates.x : currentPos.x,
+                            y: updates.y !== undefined ? updates.y : currentPos.y
+                        }
+                    }
+                };
+            }
+
+            // Other property updates
+            return { ...item, ...updates };
+        }));
     };
 
     const deleteSelected = () => {
@@ -86,23 +114,98 @@ function App() {
         setSelectedIds(new Set());
     };
 
+    // State management functions
+    const addState = () => {
+        const newState = {
+            id: uuidv4(),
+            name: `State ${states.length + 1}`,
+            timestamp: states.length
+        };
+        setStates(prev => [...prev, newState]);
+
+        // Copy positions from current state to new state for all items
+        setItems(prev => prev.map(item => ({
+            ...item,
+            statePositions: {
+                ...item.statePositions,
+                [newState.id]: item.statePositions[currentStateId] || { x: 0, y: 0 }
+            },
+            activeStates: [...item.activeStates, newState.id]
+        })));
+
+        setCurrentStateId(newState.id);
+    };
+
+    const deleteState = (stateId) => {
+        if (states.length <= 1) return; // Keep at least one state
+
+        setStates(prev => prev.filter(s => s.id !== stateId));
+
+        // Remove state from all items
+        setItems(prev => prev.map(item => {
+            const newStatePositions = { ...item.statePositions };
+            delete newStatePositions[stateId];
+            return {
+                ...item,
+                statePositions: newStatePositions,
+                activeStates: item.activeStates.filter(id => id !== stateId)
+            };
+        }));
+
+        // Switch to another state if current was deleted
+        if (currentStateId === stateId) {
+            setCurrentStateId(states.find(s => s.id !== stateId).id);
+        }
+    };
+
+    const updateStateName = (stateId, name) => {
+        setStates(prev => prev.map(s =>
+            s.id === stateId ? { ...s, name } : s
+        ));
+    };
+
+    const toggleItemInState = (itemId, stateId) => {
+        setItems(prev => prev.map(item => {
+            if (item.id !== itemId) return item;
+
+            const isActive = item.activeStates.includes(stateId);
+            if (isActive) {
+                // Remove from state
+                const newStatePositions = { ...item.statePositions };
+                delete newStatePositions[stateId];
+                return {
+                    ...item,
+                    statePositions: newStatePositions,
+                    activeStates: item.activeStates.filter(id => id !== stateId)
+                };
+            } else {
+                // Add to state (copy position from current state)
+                return {
+                    ...item,
+                    statePositions: {
+                        ...item.statePositions,
+                        [stateId]: item.statePositions[currentStateId] || { x: 0, y: 0 }
+                    },
+                    activeStates: [...item.activeStates, stateId]
+                };
+            }
+        }));
+    };
+
     // Keyboard listeners
     React.useEffect(() => {
         const handleKeyDown = (e) => {
             const activeTag = document.activeElement.tagName;
 
-            // Delete
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
                 deleteSelected();
             }
 
-            // Escape - cancel drawing
             if (e.key === 'Escape' && drawingMode) {
                 setDrawingMode(null);
             }
 
-            // Enter - finish drawing
             if (e.key === 'Enter' && drawingMode) {
                 finishDrawing();
             }
@@ -152,19 +255,44 @@ function App() {
                     selectedIds={selectedIds}
                     onUpdateItem={updateItem}
                     onDelete={deleteSelected}
+                    states={states}
+                    currentStateId={currentStateId}
+                    onToggleItemInState={toggleItemInState}
                 />
-                <div style={{ flex: 1, position: 'relative' }}>
-                    <Playground
-                        items={items}
-                        onAddItem={addItem}
-                        onUpdateItem={updateItem}
-                        selectedIds={selectedIds}
-                        onSelectionChange={setSelectedIds}
-                        viewport={viewport}
-                        onViewportChange={setViewport}
-                        drawingMode={drawingMode}
-                        onDrawingModeChange={setDrawingMode}
-                        onFinishDrawing={finishDrawing}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                        <Playground
+                            items={items}
+                            onAddItem={addItem}
+                            onUpdateItem={updateItem}
+                            selectedIds={selectedIds}
+                            onSelectionChange={setSelectedIds}
+                            viewport={viewport}
+                            onViewportChange={setViewport}
+                            drawingMode={drawingMode}
+                            onDrawingModeChange={setDrawingMode}
+                            onFinishDrawing={finishDrawing}
+                            currentStateId={currentStateId}
+                        />
+                        <EntityList
+                            items={items}
+                            selectedIds={selectedIds}
+                            onSelect={setSelectedIds}
+                            onUpdateItem={updateItem}
+                            onDelete={(ids) => {
+                                setItems(prev => prev.filter(item => !ids.has(item.id)));
+                                setSelectedIds(new Set());
+                            }}
+                            currentStateId={currentStateId}
+                        />
+                    </div>
+                    <Timeline
+                        states={states}
+                        currentStateId={currentStateId}
+                        onStateChange={setCurrentStateId}
+                        onAddState={addState}
+                        onDeleteState={deleteState}
+                        onUpdateStateName={updateStateName}
                     />
                 </div>
             </div>
