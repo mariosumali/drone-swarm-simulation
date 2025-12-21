@@ -7,7 +7,7 @@
 /**
  * Check if a point is inside an obstacle
  */
-function isPointInObstacle(point, obstacle, margin = 10) {
+export function isPointInObstacle(point, obstacle, margin = 10) {
     const pos = obstacle.statePositions?.[obstacle._checkStateId] || { x: 0, y: 0 };
 
     if (obstacle.type === 'circle') {
@@ -79,7 +79,7 @@ function isPointInObstacle(point, obstacle, margin = 10) {
 /**
  * Check if a line segment intersects with an obstacle
  */
-function lineIntersectsObstacle(p1, p2, obstacle, margin = 10) {
+export function lineIntersectsObstacle(p1, p2, obstacle, margin = 10) {
     // Sample points along the line and check each
     const steps = Math.max(10, Math.ceil(Math.hypot(p2.x - p1.x, p2.y - p1.y) / 10));
 

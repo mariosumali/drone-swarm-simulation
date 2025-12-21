@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plane, Square, Circle, Pencil, Truck, Eye, Trash2, Edit3, ChevronDown, ChevronRight, Plus, Triangle, Hexagon, Star } from 'lucide-react';
+import { Plane, Square, Circle, Pencil, Truck, Eye, Trash2, Edit3, ChevronDown, ChevronRight, Plus, Triangle, Hexagon, Star, Activity } from 'lucide-react';
 
 export function LibraryPanel({
     items = [],
@@ -11,7 +11,9 @@ export function LibraryPanel({
     showPathTracking,
     onTogglePathTracking,
     showDronePaths,
-    onToggleDronePaths
+    onToggleDronePaths,
+    showForceVectors,
+    onToggleForceVectors
 }) {
     const [editingId, setEditingId] = useState(null);
     const [editName, setEditName] = useState('');
@@ -447,6 +449,40 @@ export function LibraryPanel({
                             })}
                         </div>
                     )}
+                </div>
+
+                {/* Force Visualization */}
+                <div style={{
+                    marginTop: '0.5rem',
+                    padding: '0.5rem',
+                    background: 'var(--bg-primary)',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        Force Vectors
+                    </span>
+                    <button
+                        onClick={onToggleForceVectors}
+                        style={{
+                            padding: '0.25rem 0.5rem',
+                            background: showForceVectors ? '#f59e0b' : 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            color: showForceVectors ? 'white' : 'var(--text-secondary)',
+                            fontSize: '0.65rem',
+                            fontWeight: 500,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem'
+                        }}
+                    >
+                        <Activity size={10} />
+                        {showForceVectors ? 'Hide Forces' : 'Show Forces'}
+                    </button>
                 </div>
             </div>
 

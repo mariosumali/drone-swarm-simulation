@@ -8,7 +8,7 @@ export function Playground({
     items, onAddItem, onUpdateItem, onDeleteItem, selectedIds, onSelectionChange,
     viewport, onViewportChange,
     drawingMode, onDrawingModeChange, onFinishDrawing,
-    currentStateId, isSimulating, animationProgress, states, showPathTracking, showDronePaths,
+    currentStateId, isSimulating, animationProgress, states, showPathTracking, showDronePaths, showForceVectors,
     pathDrawingMode, onPathDrawingModeChange, onFinishPathDrawing,
     scrollZoomEnabled = true, // Default to true if not passed
     settings = {}
@@ -55,7 +55,11 @@ export function Playground({
         }
 
         // Check for custom transition path (old format)
-        const pathKey = `${states[currentStateIndex].id}_to_${states[nextStateIndex].id}`;
+        const nextState = states[nextStateIndex];
+        // Safety check if nextState is undefined (e.g. if states array changed)
+        if (!nextState) return currentPos || { x: 0, y: 0, rotation: 0 };
+
+        const pathKey = `${states[currentStateIndex].id}_to_${nextState.id}`;
         const customPath = item.customTransitionPaths?.[pathKey];
 
         if (customPath && customPath.length > 1) {
@@ -555,6 +559,115 @@ export function Playground({
                     backgroundPosition: '0 0'
                 }}
             >
+                {/* Force Vectors Visualization */}
+                {showForceVectors && (
+                    <svg style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        pointerEvents: 'none',
+                        overflow: 'visible',
+                        opacity: 0.7,
+                        zIndex: 10
+                    }}>
+                        {visibleItems.filter(item => item.type === 'drone').map(drone => {
+                            const pos = getItemPosition(drone);
+
+                            // 1. Attraction Force (Green) - towards target
+                            let attrVector = { x: 0, y: 0 };
+                            let targetPos = null;
+
+                            if (isSimulating && states.length > 1) {
+                                const currentIndex = states.findIndex(s => s.id === currentStateId);
+                                const nextIndex = (currentIndex + 1) % states.length; // Loop or clamp handled in loop
+                                const nextStateId = states[nextIndex]?.id;
+                                if (nextStateId && drone.statePositions?.[nextStateId]) {
+                                    targetPos = drone.statePositions[nextStateId];
+                                }
+                            } else if (drone.lockedToObject) {
+                                // If locked to object, target is the formation slot
+                                const parent = items.find(i => i.id === drone.lockedToObject);
+                                if (parent) {
+                                    const parentPos = getItemPosition(parent);
+                                    if (drone.relativeOffset) {
+                                        const angle = (parentPos.rotation || 0) * Math.PI / 180;
+                                        const off = drone.relativeOffset;
+                                        targetPos = {
+                                            x: parentPos.x + (off.x * Math.cos(angle) - off.y * Math.sin(angle)),
+                                            y: parentPos.y + (off.x * Math.sin(angle) + off.y * Math.cos(angle))
+                                        };
+                                    }
+                                }
+                            }
+
+                            if (targetPos) {
+                                const dx = targetPos.x - pos.x;
+                                const dy = targetPos.y - pos.y;
+                                const dist = Math.hypot(dx, dy);
+                                if (dist > 1) {
+                                    // Normalize and scale for visualization (max 50px length)
+                                    const len = Math.min(dist, 50);
+                                    attrVector = { x: (dx / dist) * len, y: (dy / dist) * len };
+                                }
+                            }
+
+                            // 2. Repulsion Force (Red) - away from obstacles
+                            let repVector = { x: 0, y: 0 };
+                            items.filter(i => i.type !== 'drone' && i.id !== drone.lockedToObject).forEach(obs => {
+                                const obsPos = getItemPosition(obs);
+                                const dx = pos.x - obsPos.x;
+                                const dy = pos.y - obsPos.y;
+                                const dist = Math.hypot(dx, dy);
+                                const safeDist = (obs.radius || Math.max(obs.w || 0, obs.h || 0) / 2) + 30; // approx radius + buffer
+
+                                if (dist < safeDist && dist > 0) {
+                                    const strength = (safeDist - dist) / safeDist; // 0 to 1
+                                    const len = strength * 50;
+                                    repVector.x += (dx / dist) * len;
+                                    repVector.y += (dy / dist) * len;
+                                }
+                            });
+
+                            // 3. Resultant (Blue)
+                            const resVector = {
+                                x: attrVector.x + repVector.x,
+                                y: attrVector.y + repVector.y
+                            };
+
+                            return (
+                                <g key={drone.id}>
+                                    {/* Attraction */}
+                                    {Math.hypot(attrVector.x, attrVector.y) > 1 && (
+                                        <line
+                                            x1={pos.x} y1={pos.y}
+                                            x2={pos.x + attrVector.x} y2={pos.y + attrVector.y}
+                                            stroke="#10b981" strokeWidth={2} strokeOpacity={0.8}
+                                        />
+                                    )}
+                                    {/* Repulsion */}
+                                    {Math.hypot(repVector.x, repVector.y) > 1 && (
+                                        <line
+                                            x1={pos.x} y1={pos.y}
+                                            x2={pos.x + repVector.x} y2={pos.y + repVector.y}
+                                            stroke="#ef4444" strokeWidth={2} strokeOpacity={0.8}
+                                        />
+                                    )}
+                                    {/* Resultant */}
+                                    {Math.hypot(resVector.x, resVector.y) > 1 && (
+                                        <line
+                                            x1={pos.x} y1={pos.y}
+                                            x2={pos.x + resVector.x} y2={pos.y + resVector.y}
+                                            stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 2"
+                                        />
+                                    )}
+                                </g>
+                            );
+                        })}
+                    </svg>
+                )}
+
                 {/* Path Tracking Lines */}
                 {showPathTracking && states && states.length > 1 && (
                     <svg style={{

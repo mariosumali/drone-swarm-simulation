@@ -34,6 +34,7 @@ function App() {
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
     const [showPathTracking, setShowPathTracking] = useState(true);
     const [showDronePaths, setShowDronePaths] = useState(true);
+    const [showForceVectors, setShowForceVectors] = useState(false);
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
     const [clipboard, setClipboard] = useState([]);
     const [theme, setTheme] = useState(() => {
@@ -1431,9 +1432,7 @@ function App() {
                         scrollZoomEnabled={scrollZoomEnabled}
                         onToggleScrollZoom={() => setScrollZoomEnabled(prev => !prev)}
                     />
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                        {items.length} Entities
-                    </span>
+
                     <button
                         onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
                         style={{
@@ -1531,6 +1530,8 @@ function App() {
                     onTogglePathTracking={() => setShowPathTracking(!showPathTracking)}
                     showDronePaths={showDronePaths}
                     onToggleDronePaths={() => setShowDronePaths(!showDronePaths)}
+                    showForceVectors={showForceVectors}
+                    onToggleForceVectors={() => setShowForceVectors(!showForceVectors)}
                 />
 
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -1572,6 +1573,7 @@ function App() {
                             states={states}
                             showPathTracking={showPathTracking}
                             showDronePaths={showDronePaths}
+                            showForceVectors={showForceVectors}
                             pathDrawingMode={pathDrawingMode}
                             onPathDrawingModeChange={setPathDrawingMode}
                             onFinishPathDrawing={finishPathDrawing}
