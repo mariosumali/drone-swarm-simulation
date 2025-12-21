@@ -13,6 +13,7 @@ export function Playground({
     currentStateId, isSimulating, animationProgress, states, showPathTracking, showDronePaths, showForceVectors,
     pathDrawingMode, onPathDrawingModeChange, onFinishPathDrawing,
     scrollZoomEnabled = true, // Default to true if not passed
+    containerRef, // For recording/region capture
     settings = {}
 }) {
 
@@ -539,7 +540,10 @@ export function Playground({
 
     return (
         <div
-            ref={playgroundRef}
+            ref={(el) => {
+                playgroundRef.current = el;
+                if (containerRef) containerRef.current = el;
+            }}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onMouseDown={handleBackgroundMouseDown}

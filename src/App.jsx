@@ -115,6 +115,7 @@ function App() {
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef(null);
     const chunksRef = useRef([]);
+    const playgroundContainerRef = useRef(null);
 
     const handleToggleRecord = async () => {
         if (isRecording) {
@@ -126,9 +127,33 @@ function App() {
         } else {
             // Start recording
             try {
+                // Check if Region Capture is supported
+                const supportsRegionCapture = 'CropTarget' in window;
+                let cropTarget = null;
+
+                if (supportsRegionCapture && playgroundContainerRef.current) {
+                    try {
+                        cropTarget = await window.CropTarget.fromElement(playgroundContainerRef.current);
+                    } catch (e) {
+                        console.warn("Region Capture failed:", e);
+                    }
+                }
+
                 const stream = await navigator.mediaDevices.getDisplayMedia({
-                    video: { mediaSource: 'screen' }
+                    video: {
+                        displaySurface: 'browser'
+                    },
+                    preferCurrentTab: true,
+                    audio: false
                 });
+
+                // Apply crop if available
+                if (cropTarget && stream.getVideoTracks().length > 0) {
+                    const track = stream.getVideoTracks()[0];
+                    if (track.cropTo) {
+                        await track.cropTo(cropTarget);
+                    }
+                }
 
                 const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
                 mediaRecorderRef.current = mediaRecorder;
@@ -1663,6 +1688,7 @@ function App() {
                                 setSelectedIds(new Set());
                             }}
                             scrollZoomEnabled={scrollZoomEnabled}
+                            containerRef={playgroundContainerRef}
                         />
 
                     </div>
