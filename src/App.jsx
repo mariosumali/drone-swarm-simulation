@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Undo, Redo, Sun, Moon, Save, FolderOpen, Settings, X, Video, Group } from 'lucide-react';
+import { Undo, Redo, Sun, Moon, Save, FolderOpen, Settings, X, Video, Group, HelpCircle, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
 import { Playground } from './components/Playground';
@@ -43,6 +43,7 @@ function App() {
 
     // Settings
     const [showSettings, setShowSettings] = useState(false);
+    const [showHelp, setShowHelp] = useState(false);
     const [settings, setSettings] = useState(() => {
         const saved = localStorage.getItem('simulationSettings');
         return saved ? JSON.parse(saved) : {
@@ -92,6 +93,69 @@ function App() {
     // Check if selection contains grouped items
     const hasGroupedItems = () => {
         return items.some(item => selectedIds.has(item.id) && item.groupId);
+    };
+
+    // Alignment functions
+    const alignItems = (alignment) => {
+        if (selectedIds.size < 2) return;
+        const selectedItems = items.filter(item => selectedIds.has(item.id));
+
+        // Get positions in current state
+        const getPos = (item) => item.statePositions?.[currentStateId] || { x: 0, y: 0 };
+        const getSize = (item) => ({
+            w: item.w || (item.radius ? item.radius * 2 : 100),
+            h: item.h || (item.radius ? item.radius * 2 : 100)
+        });
+
+        let targetValue;
+        switch (alignment) {
+            case 'left':
+                targetValue = Math.min(...selectedItems.map(i => getPos(i).x - getSize(i).w / 2));
+                setItems(prev => prev.map(item => {
+                    if (!selectedIds.has(item.id)) return item;
+                    const size = getSize(item);
+                    return { ...item, statePositions: { ...item.statePositions, [currentStateId]: { ...item.statePositions?.[currentStateId], x: targetValue + size.w / 2 } } };
+                }));
+                break;
+            case 'centerH':
+                targetValue = selectedItems.reduce((sum, i) => sum + getPos(i).x, 0) / selectedItems.length;
+                setItems(prev => prev.map(item => {
+                    if (!selectedIds.has(item.id)) return item;
+                    return { ...item, statePositions: { ...item.statePositions, [currentStateId]: { ...item.statePositions?.[currentStateId], x: targetValue } } };
+                }));
+                break;
+            case 'right':
+                targetValue = Math.max(...selectedItems.map(i => getPos(i).x + getSize(i).w / 2));
+                setItems(prev => prev.map(item => {
+                    if (!selectedIds.has(item.id)) return item;
+                    const size = getSize(item);
+                    return { ...item, statePositions: { ...item.statePositions, [currentStateId]: { ...item.statePositions?.[currentStateId], x: targetValue - size.w / 2 } } };
+                }));
+                break;
+            case 'top':
+                targetValue = Math.min(...selectedItems.map(i => getPos(i).y - getSize(i).h / 2));
+                setItems(prev => prev.map(item => {
+                    if (!selectedIds.has(item.id)) return item;
+                    const size = getSize(item);
+                    return { ...item, statePositions: { ...item.statePositions, [currentStateId]: { ...item.statePositions?.[currentStateId], y: targetValue + size.h / 2 } } };
+                }));
+                break;
+            case 'centerV':
+                targetValue = selectedItems.reduce((sum, i) => sum + getPos(i).y, 0) / selectedItems.length;
+                setItems(prev => prev.map(item => {
+                    if (!selectedIds.has(item.id)) return item;
+                    return { ...item, statePositions: { ...item.statePositions, [currentStateId]: { ...item.statePositions?.[currentStateId], y: targetValue } } };
+                }));
+                break;
+            case 'bottom':
+                targetValue = Math.max(...selectedItems.map(i => getPos(i).y + getSize(i).h / 2));
+                setItems(prev => prev.map(item => {
+                    if (!selectedIds.has(item.id)) return item;
+                    const size = getSize(item);
+                    return { ...item, statePositions: { ...item.statePositions, [currentStateId]: { ...item.statePositions?.[currentStateId], y: targetValue - size.h / 2 } } };
+                }));
+                break;
+        }
     };
 
     const addItem = (type, x, y) => {
@@ -870,6 +934,18 @@ function App() {
                     setSelectedIds(new Set(newItems.map(item => item.id)));
                 }
             }
+
+            // Group (Ctrl+G / Cmd+G)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'g') {
+                e.preventDefault();
+                if (selectedIds.size >= 2) groupSelected();
+            }
+
+            // Show help (?)
+            if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+                if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+                setShowHelp(true);
+            }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
@@ -1092,6 +1168,24 @@ function App() {
                         title="Settings"
                     >
                         <Settings size={18} />
+                    </button>
+                    <button
+                        onClick={() => setShowHelp(true)}
+                        style={{
+                            padding: '0.5rem',
+                            background: 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '8px',
+                            color: 'var(--text-primary)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s'
+                        }}
+                        title="Keyboard Shortcuts (Press ?)"
+                    >
+                        <HelpCircle size={18} />
                     </button>
                 </div>
                 {drawingMode && (
@@ -1431,6 +1525,83 @@ function App() {
                                 Created by Mario Sumali
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Keyboard Shortcuts Help Modal */}
+            {showHelp && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0, 0, 0, 0.6)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000
+                }}>
+                    <div style={{
+                        background: 'var(--bg-secondary)',
+                        borderRadius: '16px',
+                        padding: '1.5rem',
+                        width: '500px',
+                        maxHeight: '80vh',
+                        overflow: 'auto',
+                        border: '1px solid var(--border-color)'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Keyboard Shortcuts</h2>
+                            <button onClick={() => setShowHelp(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div style={{ display: 'grid', gap: '0.5rem' }}>
+                            {[
+                                ['Escape', 'Deselect / Cancel'],
+                                ['Delete', 'Delete selected'],
+                                ['Ctrl + A', 'Select all'],
+                                ['Ctrl + C', 'Copy selected'],
+                                ['Ctrl + V', 'Paste'],
+                                ['Ctrl + D', 'Duplicate selected'],
+                                ['Ctrl + Z', 'Undo'],
+                                ['Ctrl + Y', 'Redo'],
+                                ['Ctrl + G', 'Group selected'],
+                                ['Enter', 'Finish drawing'],
+                                ['Shift + Drag', 'Pan canvas'],
+                                ['Scroll', 'Zoom in/out'],
+                                ['?', 'Show this help']
+                            ].map(([key, desc]) => (
+                                <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-tertiary)' }}>
+                                    <kbd style={{
+                                        padding: '0.25rem 0.5rem',
+                                        background: 'var(--bg-primary)',
+                                        borderRadius: '4px',
+                                        fontSize: '0.75rem',
+                                        fontFamily: 'monospace',
+                                        border: '1px solid var(--border-color)'
+                                    }}>{key}</kbd>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{desc}</span>
+                                </div>
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={() => setShowHelp(false)}
+                            style={{
+                                width: '100%',
+                                padding: '0.75rem',
+                                background: 'var(--accent-color)',
+                                border: 'none',
+                                borderRadius: '8px',
+                                color: 'white',
+                                cursor: 'pointer',
+                                marginTop: '1rem',
+                                fontWeight: 500
+                            }}
+                        >
+                            Got it!
+                        </button>
                     </div>
                 </div>
             )}

@@ -16,6 +16,7 @@ export function Playground({
     const contentRef = useRef(null);
     const [activeDrag, setActiveDrag] = useState(null);
     const [isPanning, setIsPanning] = useState(false);
+    const [contextMenu, setContextMenu] = useState(null); // { x, y }
     const [panStart, setPanStart] = useState(null);
     const [rotatingItem, setRotatingItem] = useState(null);
     const [scrollZoomEnabled, setScrollZoomEnabled] = useState(true);
