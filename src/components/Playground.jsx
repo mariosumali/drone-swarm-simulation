@@ -14,6 +14,7 @@ export function Playground({
     const [activeDrag, setActiveDrag] = useState(null);
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState(null);
+    const [rotatingItem, setRotatingItem] = useState(null);
 
     // Get item position for current state
     const getItemPosition = (item) => {
@@ -150,6 +151,27 @@ export function Playground({
             return;
         }
 
+        // Rotation
+        if (rotatingItem) {
+            const item = visibleItems.find(i => i.id === rotatingItem);
+            if (!item) return;
+
+            const pos = getItemPosition(item);
+            const rect = playgroundRef.current.getBoundingClientRect();
+
+            // Convert to world coordinates
+            const centerScreenX = (pos.x * viewport.zoom) + viewport.offsetX + rect.left;
+            const centerScreenY = (pos.y * viewport.zoom) + viewport.offsetY + rect.top;
+
+            // Calculate angle from center to mouse
+            const dx = e.clientX - centerScreenX;
+            const dy = e.clientY - centerScreenY;
+            const angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+
+            onUpdateItem(rotatingItem, { rotation: Math.round(angle) });
+            return;
+        }
+
         if (!activeDrag) return;
 
         const currentWorld = screenToWorld(e.clientX, e.clientY);
@@ -191,6 +213,7 @@ export function Playground({
         setActiveDrag(null);
         setIsPanning(false);
         setPanStart(null);
+        setRotatingItem(null);
     };
 
     React.useEffect(() => {
@@ -249,6 +272,7 @@ export function Playground({
                                 position: 'absolute',
                                 left: pos.x,
                                 top: pos.y,
+                                transform: `translate(-50%, -50%) rotate(${pos.rotation || 0}deg)`,
                                 zIndex: selectedIds.has(item.id) ? 10 : 1
                             }}
                             onMouseDown={(e) => handleItemMouseDown(e, item)}
@@ -264,6 +288,39 @@ export function Playground({
                                     selected={selectedIds.has(item.id)}
                                     dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
                                 />
+                            )}
+
+                            {/* Rotation Handle */}
+                            {selectedIds.has(item.id) && selectedIds.size === 1 && (
+                                <div
+                                    onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        setRotatingItem(item.id);
+                                    }}
+                                    style={{
+                                        position: 'absolute',
+                                        top: '-30px',
+                                        right: '-30px',
+                                        width: '24px',
+                                        height: '24px',
+                                        borderRadius: '50%',
+                                        background: 'var(--accent-color)',
+                                        border: '2px solid white',
+                                        cursor: 'grab',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                        fontSize: '12px',
+                                        color: 'white',
+                                        fontWeight: 'bold',
+                                        transform: `rotate(-${pos.rotation || 0}deg)`,
+                                        zIndex: 100
+                                    }}
+                                    title="Drag to rotate"
+                                >
+                                    ↻
+                                </div>
                             )}
                         </div>
                     );

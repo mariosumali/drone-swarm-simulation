@@ -9,17 +9,21 @@ export function SimulationObject({ data, selected, dragging }) {
             `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
         ).join(' ') + ' Z';
 
+        const svgWidth = data.w + 20;
+        const svgHeight = data.h + 20;
+
         return (
             <svg
                 style={{
                     position: 'absolute',
-                    transform: 'translate(-50%, -50%)',
+                    left: `${-svgWidth / 2}px`,
+                    top: `${-svgHeight / 2}px`,
                     cursor: dragging ? 'grabbing' : 'grab',
                     overflow: 'visible',
                     filter: selected ? 'drop-shadow(0 0 8px var(--accent-color))' : 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
                 }}
-                width={data.w + 20}
-                height={data.h + 20}
+                width={svgWidth}
+                height={svgHeight}
             >
                 <path
                     d={pathString}
@@ -27,9 +31,9 @@ export function SimulationObject({ data, selected, dragging }) {
                     fillOpacity="0.8"
                     stroke={selected ? 'var(--accent-color)' : '#22c55e'}
                     strokeWidth={selected ? 3 : 2}
-                    transform={`translate(${(data.w + 20) / 2}, ${(data.h + 20) / 2})`}
+                    transform={`translate(${svgWidth / 2}, ${svgHeight / 2})`}
                 />
-                <circle cx={(data.w + 20) / 2} cy={(data.h + 20) / 2} r="3" fill="rgba(0,0,0,0.3)" />
+                <circle cx={svgWidth / 2} cy={svgHeight / 2} r="3" fill="rgba(0,0,0,0.3)" />
             </svg>
         );
     }
@@ -39,13 +43,14 @@ export function SimulationObject({ data, selected, dragging }) {
         const radius = data.radius || 50;
         return (
             <div style={{
+                position: 'absolute',
+                left: `${-radius}px`,
+                top: `${-radius}px`,
                 width: `${radius * 2}px`,
                 height: `${radius * 2}px`,
                 backgroundColor: '#f472b6',
                 borderRadius: '50%',
-                transform: 'translate(-50%, -50%)',
                 cursor: dragging ? 'grabbing' : 'grab',
-                position: 'relative',
                 opacity: 0.9,
                 boxShadow: selected ? '0 0 0 2px var(--accent-color), 0 0 15px rgba(244, 114, 182, 0.4)' : '0 4px 6px rgba(0,0,0,0.1)',
                 display: 'flex',
@@ -64,13 +69,14 @@ export function SimulationObject({ data, selected, dragging }) {
         const height = data.h || 100;
         return (
             <div style={{
+                position: 'absolute',
+                left: `${-width / 2}px`,
+                top: `${-height / 2}px`,
                 width: `${width}px`,
                 height: `${height}px`,
                 backgroundColor: '#f472b6',
                 borderRadius: '4px',
-                transform: 'translate(-50%, -50%)',
                 cursor: dragging ? 'grabbing' : 'grab',
-                position: 'relative',
                 opacity: 0.9,
                 boxShadow: selected ? '0 0 0 2px var(--accent-color), 0 0 15px rgba(244, 114, 182, 0.4)' : '0 4px 6px rgba(0,0,0,0.1)',
                 display: 'flex',
@@ -83,6 +89,5 @@ export function SimulationObject({ data, selected, dragging }) {
         );
     }
 
-    // Fallback for any other type
     return null;
 }

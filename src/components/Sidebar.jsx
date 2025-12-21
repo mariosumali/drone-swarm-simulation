@@ -229,6 +229,16 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                         style={inputStyle}
                                     />
                                 </div>
+
+                                <div style={formGroupStyle}>
+                                    <label style={labelStyle}>Rotation (°)</label>
+                                    <input
+                                        type="number"
+                                        value={Math.round(singleSelectedItem.statePositions?.[currentStateId]?.rotation || 0)}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { rotation: parseInt(e.target.value) || 0 })}
+                                        style={inputStyle}
+                                    />
+                                </div>
                             </>
                         )}
 
@@ -252,6 +262,16 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                         value={singleSelectedItem.weight || 10}
                                         onChange={(e) => onUpdateItem(singleSelectedItem.id, { weight: parseFloat(e.target.value) || 0 })}
                                         step="0.1"
+                                        style={inputStyle}
+                                    />
+                                </div>
+
+                                <div style={formGroupStyle}>
+                                    <label style={labelStyle}>Rotation (°)</label>
+                                    <input
+                                        type="number"
+                                        value={Math.round(singleSelectedItem.statePositions?.[currentStateId]?.rotation || 0)}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { rotation: parseInt(e.target.value) || 0 })}
                                         style={inputStyle}
                                     />
                                 </div>
@@ -300,6 +320,16 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                         value={singleSelectedItem.weight || 10}
                                         onChange={(e) => onUpdateItem(singleSelectedItem.id, { weight: parseFloat(e.target.value) || 0 })}
                                         step="0.1"
+                                        style={inputStyle}
+                                    />
+                                </div>
+
+                                <div style={formGroupStyle}>
+                                    <label style={labelStyle}>Rotation (°)</label>
+                                    <input
+                                        type="number"
+                                        value={Math.round(singleSelectedItem.statePositions?.[currentStateId]?.rotation || 0)}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { rotation: parseInt(e.target.value) || 0 })}
                                         style={inputStyle}
                                     />
                                 </div>

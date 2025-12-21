@@ -4,10 +4,11 @@ export function Drone({ selected, dragging }) {
     // Styles for a "quadcopter" look
     return (
         <div style={{
-            position: 'relative',
+            position: 'absolute',
+            left: '-20px',
+            top: '-20px',
             width: '40px',
             height: '40px',
-            transform: 'translate(-50%, -50%)', // Center based on coordinate
             transition: dragging ? 'none' : 'box-shadow 0.2s',
             cursor: dragging ? 'grabbing' : 'grab',
         }}>

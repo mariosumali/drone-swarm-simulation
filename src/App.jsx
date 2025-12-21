@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout } from 'lucide-react';
+import { Layout, Undo, Redo } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
 import { Playground } from './components/Playground';
@@ -11,6 +11,10 @@ function App() {
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [viewport, setViewport] = useState({ zoom: 1, offsetX: 0, offsetY: 0 });
     const [drawingMode, setDrawingMode] = useState(null);
+
+    // History for undo/redo
+    const [history, setHistory] = useState([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
 
     // State management
     const [states, setStates] = useState([
@@ -29,7 +33,7 @@ function App() {
             type,
             // Store positions per state
             statePositions: {
-                [currentStateId]: { x, y }
+                [currentStateId]: { x, y, rotation: 0 }
             },
             activeStates: [currentStateId],
             // Default properties based on type
@@ -88,16 +92,17 @@ function App() {
         setItems(prev => prev.map(item => {
             if (item.id !== id) return item;
 
-            // If updating x or y, update state position
-            if ('x' in updates || 'y' in updates) {
-                const currentPos = item.statePositions[currentStateId] || { x: 0, y: 0 };
+            // If updating x, y, or rotation, update state position
+            if ('x' in updates || 'y' in updates || 'rotation' in updates) {
+                const currentPos = item.statePositions[currentStateId] || { x: 0, y: 0, rotation: 0 };
                 return {
                     ...item,
                     statePositions: {
                         ...item.statePositions,
                         [currentStateId]: {
                             x: updates.x !== undefined ? updates.x : currentPos.x,
-                            y: updates.y !== undefined ? updates.y : currentPos.y
+                            y: updates.y !== undefined ? updates.y : currentPos.y,
+                            rotation: updates.rotation !== undefined ? updates.rotation : currentPos.rotation
                         }
                     }
                 };
@@ -113,6 +118,36 @@ function App() {
         setItems(prev => prev.filter(item => !selectedIds.has(item.id)));
         setSelectedIds(new Set());
     };
+
+    // History management
+    const saveHistory = () => {
+        const snapshot = JSON.parse(JSON.stringify(items));
+        const newHistory = history.slice(0, historyIndex + 1);
+        newHistory.push(snapshot);
+        setHistory(newHistory);
+        setHistoryIndex(newHistory.length - 1);
+    };
+
+    const undo = () => {
+        if (historyIndex > 0) {
+            setHistoryIndex(historyIndex - 1);
+            setItems(JSON.parse(JSON.stringify(history[historyIndex - 1])));
+        }
+    };
+
+    const redo = () => {
+        if (historyIndex < history.length - 1) {
+            setHistoryIndex(historyIndex + 1);
+            setItems(JSON.parse(JSON.stringify(history[historyIndex + 1])));
+        }
+    };
+
+    // Save history when items change
+    React.useEffect(() => {
+        if (items.length > 0 || history.length === 0) {
+            saveHistory();
+        }
+    }, [items.length, items.map(i => i.id).join(',')]);
 
     // State management functions
     const addState = () => {
@@ -202,6 +237,16 @@ function App() {
                 deleteSelected();
             }
 
+            // Undo/Redo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            }
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                redo();
+            }
+
             if (e.key === 'Escape' && drawingMode) {
                 setDrawingMode(null);
             }
@@ -232,6 +277,45 @@ function App() {
                 <h1 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
                     Drone Swarm Simulation
                 </h1>
+
+                {/* Undo/Redo buttons */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginLeft: '1rem' }}>
+                    <button
+                        onClick={undo}
+                        disabled={historyIndex <= 0}
+                        style={{
+                            padding: '0.5rem',
+                            background: historyIndex <= 0 ? 'var(--bg-tertiary)' : 'var(--bg-primary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            color: historyIndex <= 0 ? 'var(--text-secondary)' : 'var(--text-primary)',
+                            cursor: historyIndex <= 0 ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            opacity: historyIndex <= 0 ? 0.5 : 1
+                        }}
+                        title="Undo (Ctrl+Z)"
+                    >
+                        <Undo size={16} />
+                    </button>
+                    <button
+                        onClick={redo}
+                        disabled={historyIndex >= history.length - 1}
+                        style={{
+                            padding: '0.5rem',
+                            background: historyIndex >= history.length - 1 ? 'var(--bg-tertiary)' : 'var(--bg-primary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            color: historyIndex >= history.length - 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
+                            cursor: historyIndex >= history.length - 1 ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            opacity: historyIndex >= history.length - 1 ? 0.5 : 1
+                        }}
+                        title="Redo (Ctrl+Y)"
+                    >
+                        <Redo size={16} />
+                    </button>
+                </div>
+
                 <div style={{ marginLeft: 'auto', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                     {items.length} Entities
                 </div>
