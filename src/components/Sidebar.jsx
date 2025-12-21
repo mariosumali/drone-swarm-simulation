@@ -220,6 +220,33 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                             />
                                         </div>
                                     </div>
+                                    {/* Only show Altitude for air drones */}
+                                    {singleSelectedItem.type === 'drone' && singleSelectedItem.droneType !== 'ground' && (
+                                        <div style={formGroupStyle}>
+                                            <label style={labelStyle}>Altitude (Z)</label>
+                                            <input
+                                                type="number"
+                                                value={Math.round(displayPos.z || 0)}
+                                                onChange={(e) => onUpdateItem(singleSelectedItem.id, { z: parseInt(e.target.value) || 0 })}
+                                                style={inputStyle}
+                                                disabled={isSimulating}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Height for non-drone objects (even if not marked as obstacle) */}
+                                    {singleSelectedItem.type !== 'drone' && (
+                                        <div style={formGroupStyle}>
+                                            <label style={labelStyle}>Height</label>
+                                            <input
+                                                type="number"
+                                                value={singleSelectedItem.height || 100}
+                                                onChange={(e) => onUpdateItem(singleSelectedItem.id, { height: parseInt(e.target.value) || 100 })}
+                                                style={inputStyle}
+                                                min="0"
+                                            />
+                                        </div>
+                                    )}
                                 </>
                             );
                         })()}

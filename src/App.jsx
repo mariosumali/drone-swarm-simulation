@@ -7,6 +7,7 @@ import { Playground } from './components/Playground';
 import { Timeline } from './components/Timeline';
 import { EntityList } from './components/EntityList';
 import { ZoomControls } from './components/ZoomControls';
+import { TelemetryDashboard } from './components/TelemetryDashboard';
 import { generateAutoPath } from './utils/pathfinding';
 
 
@@ -35,6 +36,8 @@ function App() {
     const [showPathTracking, setShowPathTracking] = useState(true);
     const [showDronePaths, setShowDronePaths] = useState(true);
     const [showForceVectors, setShowForceVectors] = useState(false);
+    const [showTelemetry, setShowTelemetry] = useState(false);
+    const [show3DMode, setShow3DMode] = useState(false);
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
     const [clipboard, setClipboard] = useState([]);
     const [theme, setTheme] = useState(() => {
@@ -269,7 +272,7 @@ function App() {
             type,
             // Store positions per state
             statePositions: {
-                [currentStateId]: { x, y, rotation: 0 }
+                [currentStateId]: { x, y, z: 0, rotation: 0 }
             },
             activeStates: [currentStateId],
             // Transport properties
@@ -536,8 +539,8 @@ function App() {
                     }
                 }
 
-                // Position/rotation updates (including from interpolation)
-                if ('x' in updates || 'y' in updates || 'rotation' in updates) {
+                // Position/rotation/altitude updates (including from interpolation)
+                if ('x' in updates || 'y' in updates || 'z' in updates || 'rotation' in updates) {
                     if (item.statePositions) {
                         return {
                             ...item,
@@ -548,6 +551,7 @@ function App() {
                                     ...(item.statePositions[currentStateId] || {}),
                                     x: updates.x !== undefined ? updates.x : item.statePositions[currentStateId]?.x || 0,
                                     y: updates.y !== undefined ? updates.y : item.statePositions[currentStateId]?.y || 0,
+                                    z: updates.z !== undefined ? updates.z : item.statePositions[currentStateId]?.z || 0,
                                     rotation: updates.rotation !== undefined ? updates.rotation : (item.statePositions[currentStateId]?.rotation || 0)
                                 }
                             }
@@ -1679,19 +1683,27 @@ function App() {
                             showPathTracking={showPathTracking}
                             showDronePaths={showDronePaths}
                             showForceVectors={showForceVectors}
+                            show3DMode={show3DMode}
                             pathDrawingMode={pathDrawingMode}
                             onPathDrawingModeChange={setPathDrawingMode}
                             onFinishPathDrawing={finishPathDrawing}
                             settings={settings}
+                            containerRef={playgroundContainerRef}
                             onDeleteItem={(id) => {
                                 setItems(prev => prev.filter(item => item.id !== id));
                                 setSelectedIds(new Set());
                             }}
                             scrollZoomEnabled={scrollZoomEnabled}
-                            containerRef={playgroundContainerRef}
                         />
 
                     </div>
+                    {showTelemetry && (
+                        <TelemetryDashboard
+                            items={items}
+                            currentStateId={currentStateId}
+                            isSimulating={isSimulating}
+                        />
+                    )}
                     <Timeline
                         states={states}
                         currentStateId={currentStateId}
@@ -1808,6 +1820,31 @@ function App() {
                                             style={{ width: '100px', cursor: 'pointer' }}
                                         />
                                         <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.zoomSensitivity}x</span>
+                                    </label>
+                                </div>
+                            </div>
+
+
+
+                            {/* Display Settings */}
+                            <div>
+                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Display</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontSize: '0.875rem', cursor: 'pointer' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={showTelemetry}
+                                            onChange={(e) => setShowTelemetry(e.target.checked)}
+                                        />
+                                        Show Telemetry Dashboard
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontSize: '0.875rem', cursor: 'pointer' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={show3DMode}
+                                            onChange={(e) => setShow3DMode(e.target.checked)}
+                                        />
+                                        Enable 3D Altitude View
                                     </label>
                                 </div>
                             </div>
@@ -1961,85 +1998,88 @@ function App() {
                         </div>
                     </div>
                 </div>
-            )}
+            )
+            }
 
             {/* Keyboard Shortcuts Help Modal */}
-            {showHelp && (
-                <div style={{
-                    position: 'fixed',
-                    inset: 0,
-                    background: 'rgba(0, 0, 0, 0.6)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1000
-                }}>
+            {
+                showHelp && (
                     <div style={{
-                        background: 'var(--bg-secondary)',
-                        borderRadius: '16px',
-                        padding: '1.5rem',
-                        width: '500px',
-                        maxHeight: '80vh',
-                        overflow: 'auto',
-                        border: '1px solid var(--border-color)'
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0, 0, 0, 0.6)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 1000
                     }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Keyboard Shortcuts</h2>
-                            <button onClick={() => setShowHelp(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
-                                <X size={20} />
+                        <div style={{
+                            background: 'var(--bg-secondary)',
+                            borderRadius: '16px',
+                            padding: '1.5rem',
+                            width: '500px',
+                            maxHeight: '80vh',
+                            overflow: 'auto',
+                            border: '1px solid var(--border-color)'
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Keyboard Shortcuts</h2>
+                                <button onClick={() => setShowHelp(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div style={{ display: 'grid', gap: '0.5rem' }}>
+                                {[
+                                    ['Escape', 'Deselect / Cancel'],
+                                    ['Delete', 'Delete selected'],
+                                    ['Ctrl + A', 'Select all'],
+                                    ['Ctrl + C', 'Copy selected'],
+                                    ['Ctrl + V', 'Paste'],
+                                    ['Ctrl + D', 'Duplicate selected'],
+                                    ['Ctrl + Z', 'Undo'],
+                                    ['Ctrl + Y', 'Redo'],
+                                    ['Ctrl + G', 'Group selected'],
+                                    ['Enter', 'Finish drawing'],
+                                    ['Shift + Drag', 'Pan canvas'],
+                                    ['Scroll', 'Zoom in/out'],
+                                    ['?', 'Show this help']
+                                ].map(([key, desc]) => (
+                                    <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-tertiary)' }}>
+                                        <kbd style={{
+                                            padding: '0.25rem 0.5rem',
+                                            background: 'var(--bg-primary)',
+                                            borderRadius: '4px',
+                                            fontSize: '0.75rem',
+                                            fontFamily: 'monospace',
+                                            border: '1px solid var(--border-color)'
+                                        }}>{key}</kbd>
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{desc}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button
+                                onClick={() => setShowHelp(false)}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.75rem',
+                                    background: 'var(--accent-color)',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    marginTop: '1rem',
+                                    fontWeight: 500
+                                }}
+                            >
+                                Got it!
                             </button>
                         </div>
-
-                        <div style={{ display: 'grid', gap: '0.5rem' }}>
-                            {[
-                                ['Escape', 'Deselect / Cancel'],
-                                ['Delete', 'Delete selected'],
-                                ['Ctrl + A', 'Select all'],
-                                ['Ctrl + C', 'Copy selected'],
-                                ['Ctrl + V', 'Paste'],
-                                ['Ctrl + D', 'Duplicate selected'],
-                                ['Ctrl + Z', 'Undo'],
-                                ['Ctrl + Y', 'Redo'],
-                                ['Ctrl + G', 'Group selected'],
-                                ['Enter', 'Finish drawing'],
-                                ['Shift + Drag', 'Pan canvas'],
-                                ['Scroll', 'Zoom in/out'],
-                                ['?', 'Show this help']
-                            ].map(([key, desc]) => (
-                                <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-tertiary)' }}>
-                                    <kbd style={{
-                                        padding: '0.25rem 0.5rem',
-                                        background: 'var(--bg-primary)',
-                                        borderRadius: '4px',
-                                        fontSize: '0.75rem',
-                                        fontFamily: 'monospace',
-                                        border: '1px solid var(--border-color)'
-                                    }}>{key}</kbd>
-                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{desc}</span>
-                                </div>
-                            ))}
-                        </div>
-
-                        <button
-                            onClick={() => setShowHelp(false)}
-                            style={{
-                                width: '100%',
-                                padding: '0.75rem',
-                                background: 'var(--accent-color)',
-                                border: 'none',
-                                borderRadius: '8px',
-                                color: 'white',
-                                cursor: 'pointer',
-                                marginTop: '1rem',
-                                fontWeight: 500
-                            }}
-                        >
-                            Got it!
-                        </button>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }
 

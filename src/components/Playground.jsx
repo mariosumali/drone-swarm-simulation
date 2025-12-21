@@ -14,6 +14,7 @@ export function Playground({
     pathDrawingMode, onPathDrawingModeChange, onFinishPathDrawing,
     scrollZoomEnabled = true, // Default to true if not passed
     containerRef, // For recording/region capture
+    show3DMode = false,
     settings = {}
 }) {
 
@@ -35,7 +36,7 @@ export function Playground({
     const getItemPosition = (item) => {
         // Regular item positioning (not simulating)
         if (!isSimulating || !item.statePositions) {
-            return item.statePositions?.[currentStateId] || { x: 0, y: 0, rotation: 0 };
+            return item.statePositions?.[currentStateId] || { x: 0, y: 0, z: 0, rotation: 0 };
         }
 
         const currentStateIndex = states.findIndex(s => s.id === currentStateId);
@@ -66,7 +67,15 @@ export function Playground({
         const customPath = item.customTransitionPaths?.[pathKey];
 
         if (customPath && customPath.length > 1) {
-            return interpolateAlongPath(customPath, animationProgress, settings.easing);
+            const interpolated = interpolateAlongPath(customPath, animationProgress, settings.easing);
+
+            // Basic Z-axis interpolation for custom paths (linear approach since paths are 2D)
+            const zStart = currentPos.z || 0;
+            const zEnd = nextState.statePositions?.[nextState.id]?.z || 0; // Look ahead to target Z
+            // Actually, we should interpolate Z based on start/end states for the whole path duration
+            const z = interpolate(currentPos.z || 0, nextPos.z || 0, animationProgress);
+
+            return { ...interpolated, z };
         }
 
         // Drone locked to object - follow parent position
@@ -842,11 +851,23 @@ export function Playground({
                                     if (!p1 || !p2) continue;
 
                                     obsInState.forEach(obs => {
-                                        if (lineIntersectsObstacle(p1, p2, obs, 5)) {
-                                            collisions.push({
-                                                x: (p1.x + p2.x) / 2,
-                                                y: (p1.y + p2.y) / 2
-                                            });
+                                        // Get drone's altitude at this segment (interpolate between states)
+                                        const fromStatePos = item.statePositions?.[fromState.id];
+                                        const toStatePos = item.statePositions?.[toState.id];
+                                        const droneZ = Math.min(fromStatePos?.z || 0, toStatePos?.z || 0);
+
+                                        // Get obstacle height (default 100 if not specified)
+                                        const obstacleHeight = obs.height || 100;
+
+                                        // Only check collision if drone altitude is below obstacle height
+                                        // Air drones flying above obstacles won't collide
+                                        if (droneZ < obstacleHeight) {
+                                            if (lineIntersectsObstacle(p1, p2, obs, 5)) {
+                                                collisions.push({
+                                                    x: (p1.x + p2.x) / 2,
+                                                    y: (p1.y + p2.y) / 2
+                                                });
+                                            }
                                         }
                                     });
                                 }
@@ -893,8 +914,9 @@ export function Playground({
                                     position: 'absolute',
                                     left: pos.x,
                                     top: pos.y,
-                                    transform: `translate(-50%, -50%) rotate(${pos.rotation || 0}deg)`,
-                                    zIndex: selectedIds.has(item.id) ? 10 : 1
+                                    transform: `translate(-50%, -50%) rotate(${pos.rotation || 0}deg) ${show3DMode ? `translateY(-${pos.z || 0}px) scale(${1 + (pos.z || 0) / 1000})` : ''}`,
+                                    zIndex: (selectedIds.has(item.id) ? 10 : 1) + Math.floor(pos.z || 0),
+                                    transition: isSimulating ? 'none' : 'transform 0.1s'
                                 }}
                                 onMouseDown={(e) => handleItemMouseDown(e, item)}
                             >
@@ -915,79 +937,103 @@ export function Playground({
                                     />
                                 )}
 
+                                {/* Shadow for 3D Mode */}
+                                {show3DMode && (pos.z > 0) && (
+                                    <div
+                                        style={{
+                                            position: 'absolute',
+                                            top: '50%',
+                                            left: '50%',
+                                            width: '100%',
+                                            height: '100%',
+                                            background: 'rgba(0,0,0,0.5)',
+                                            borderRadius: item.type === 'circle' || item.type === 'drone' ? '50%' : '4px',
+                                            transform: `translate(-50%, -50%) scale(${1 - Math.min(pos.z / 1000, 0.5)})`,
+                                            filter: `blur(${Math.min(pos.z / 5, 20)}px)`,
+                                            zIndex: -1,
+                                            pointerEvents: 'none'
+                                        }}
+                                    />
+                                )}
+
+
                                 {/* Delete Button - Top Left of shape */}
-                                {selectedIds.has(item.id) && selectedIds.size === 1 && (() => {
-                                    const w = item.w || (item.radius ? item.radius * 2 : 100);
-                                    const h = item.h || (item.radius ? item.radius * 2 : 100);
-                                    return (
-                                        <div
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (onDeleteItem) onDeleteItem(item.id);
-                                            }}
-                                            style={{
-                                                position: 'absolute',
-                                                top: `${-h / 2 - 12}px`,
-                                                left: `${-w / 2 - 12}px`,
-                                                width: '24px',
-                                                height: '24px',
-                                                borderRadius: '50%',
-                                                background: '#ef4444',
-                                                border: '2px solid white',
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                                                fontSize: '14px',
-                                                color: 'white',
-                                                fontWeight: 'bold',
-                                                transform: `rotate(-${pos.rotation || 0}deg)`,
-                                                zIndex: 100
-                                            }}
-                                            title="Delete"
-                                        >
-                                            ✕
-                                        </div>
-                                    );
-                                })()}
+                                {
+                                    selectedIds.has(item.id) && selectedIds.size === 1 && (() => {
+                                        const w = item.w || (item.radius ? item.radius * 2 : 100);
+                                        const h = item.h || (item.radius ? item.radius * 2 : 100);
+                                        return (
+                                            <div
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (onDeleteItem) onDeleteItem(item.id);
+                                                }}
+                                                style={{
+                                                    position: 'absolute',
+                                                    top: `${-h / 2 - 12}px`,
+                                                    left: `${-w / 2 - 12}px`,
+                                                    width: '24px',
+                                                    height: '24px',
+                                                    borderRadius: '50%',
+                                                    background: '#ef4444',
+                                                    border: '2px solid white',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                                    fontSize: '14px',
+                                                    color: 'white',
+                                                    fontWeight: 'bold',
+                                                    transform: `rotate(-${pos.rotation || 0}deg)`,
+                                                    zIndex: 100
+                                                }}
+                                                title="Delete"
+                                            >
+                                                ✕
+                                            </div>
+                                        );
+                                    })()
+                                }
 
                                 {/* Rotation Handle - Top Right of shape */}
-                                {selectedIds.has(item.id) && selectedIds.size === 1 && (() => {
-                                    const w = item.w || (item.radius ? item.radius * 2 : 100);
-                                    const h = item.h || (item.radius ? item.radius * 2 : 100);
-                                    return (
-                                        <div
-                                            onMouseDown={(e) => {
-                                                e.stopPropagation();
-                                                setRotatingItem(item.id);
-                                            }}
-                                            style={{
-                                                position: 'absolute',
-                                                top: `${-h / 2 - 12}px`,
-                                                right: `${-w / 2 - 12}px`,
-                                                width: '24px',
-                                                height: '24px',
-                                                borderRadius: '50%',
-                                                background: 'var(--accent-color)',
-                                                border: '2px solid white',
-                                                cursor: 'grab',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                                                fontSize: '12px',
-                                                color: 'white',
-                                                fontWeight: 'bold',
-                                                transform: `rotate(-${pos.rotation || 0}deg)`,
-                                                zIndex: 100
-                                            }}
-                                            title="Drag to rotate"
-                                        >
-                                            ↻
-                                        </div>
-                                    );
-                                })()}
+                                {
+                                    selectedIds.has(item.id) && selectedIds.size === 1 && (() => {
+                                        const w = item.w || (item.radius ? item.radius * 2 : 100);
+                                        const h = item.h || (item.radius ? item.radius * 2 : 100);
+                                        return (
+                                            <div
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    setRotatingItem(item.id);
+                                                }}
+                                                style={{
+                                                    position: 'absolute',
+                                                    top: `${-h / 2 - 12}px`,
+                                                    right: `${-w / 2 - 12}px`,
+                                                    width: '24px',
+                                                    height: '24px',
+                                                    borderRadius: '50%',
+                                                    background: 'var(--accent-color)',
+                                                    border: '2px solid white',
+                                                    cursor: 'grab',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                                    fontSize: '12px',
+                                                    color: 'white',
+                                                    fontWeight: 'bold',
+                                                    transform: `rotate(-${pos.rotation || 0}deg)`,
+                                                    zIndex: 100
+                                                }}
+                                                title="Drag to rotate"
+                                            >
+                                                ↻
+                                            </div>
+                                        );
+                                    })()
+                                }
                             </div>
                         );
                     })}
@@ -1175,20 +1221,22 @@ export function Playground({
                 )}
             </div>
 
-            {visibleItems.length === 0 && !drawingMode && (
-                <div style={{
-                    position: 'absolute',
-                    top: '50%', left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    color: 'var(--text-secondary)',
-                    pointerEvents: 'none',
-                    textAlign: 'center'
-                }}>
-                    <p>Drag items from the sidebar to start</p>
-                    <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Scroll to zoom • Drag to select • Shift+Drag to pan</p>
-                </div>
-            )}
+            {
+                visibleItems.length === 0 && !drawingMode && (
+                    <div style={{
+                        position: 'absolute',
+                        top: '50%', left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        color: 'var(--text-secondary)',
+                        pointerEvents: 'none',
+                        textAlign: 'center'
+                    }}>
+                        <p>Drag items from the sidebar to start</p>
+                        <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Scroll to zoom • Drag to select • Shift+Drag to pan</p>
+                    </div>
+                )
+            }
 
-        </div>
+        </div >
     );
 }
