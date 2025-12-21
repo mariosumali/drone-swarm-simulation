@@ -2,11 +2,10 @@ import React, { useRef, useState } from 'react';
 import { Drone } from './Drone';
 import { SimulationObject } from './SimulationObject';
 
-export function Playground({ items, onAddItem, onUpdateItem, selectedId, onSelect }) {
+export function Playground({ items, onAddItem, onUpdateItem, selectedIds, onSelectionChange }) {
     const playgroundRef = useRef(null);
-    const [dragState, setDragState] = useState(null); // { id, startX, startY, originalX, originalY }
+    const [activeDrag, setActiveDrag] = useState(null);
 
-    // Handle drop from Sidebar
     const handleDrop = (e) => {
         e.preventDefault();
         const type = e.dataTransfer.getData('application/react-dnd-type');
@@ -24,40 +23,94 @@ export function Playground({ items, onAddItem, onUpdateItem, selectedId, onSelec
         e.dataTransfer.dropEffect = 'copy';
     };
 
-    // Handle internal dragging
-    const handleMouseDown = (e, item) => {
-        e.stopPropagation(); // Prevent deselecting
-        onSelect(item.id);
-        setDragState({
-            id: item.id,
-            startX: e.clientX,
-            startY: e.clientY,
-            originalX: item.x,
-            originalY: item.y
+    const handleItemMouseDown = (e, item) => {
+        e.stopPropagation();
+
+        let newSelection = new Set(selectedIds);
+        if (!newSelection.has(item.id)) {
+            if (!e.shiftKey) {
+                newSelection = new Set([item.id]);
+            } else {
+                newSelection.add(item.id);
+            }
+            onSelectionChange(newSelection);
+        }
+
+        const rect = playgroundRef.current.getBoundingClientRect();
+        setActiveDrag({
+            type: 'item',
+            items: items.filter(i => newSelection.has(i.id)).map(i => ({
+                id: i.id,
+                startX: i.x,
+                startY: i.y
+            })),
+            mouseStartX: e.clientX - rect.left,
+            mouseStartY: e.clientY - rect.top
+        });
+    };
+
+    const handleBackgroundMouseDown = (e) => {
+        if (e.target !== playgroundRef.current) return;
+
+        if (!e.shiftKey) {
+            onSelectionChange(new Set());
+        }
+
+        const rect = playgroundRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        setActiveDrag({
+            type: 'box',
+            startX: x,
+            startY: y,
+            currentX: x,
+            currentY: y,
+            initialSelection: e.shiftKey ? new Set(selectedIds) : new Set()
         });
     };
 
     const handleMouseMove = (e) => {
-        if (!dragState) return;
+        if (!activeDrag) return;
 
-        const dx = e.clientX - dragState.startX;
-        const dy = e.clientY - dragState.startY;
+        const rect = playgroundRef.current.getBoundingClientRect();
+        const currentX = e.clientX - rect.left;
+        const currentY = e.clientY - rect.top;
 
-        onUpdateItem(dragState.id, {
-            x: dragState.originalX + dx,
-            y: dragState.originalY + dy
-        });
+        if (activeDrag.type === 'item') {
+            const dx = currentX - activeDrag.mouseStartX;
+            const dy = currentY - activeDrag.mouseStartY;
+
+            activeDrag.items.forEach(dragItem => {
+                onUpdateItem(dragItem.id, {
+                    x: dragItem.startX + dx,
+                    y: dragItem.startY + dy
+                });
+            });
+        } else if (activeDrag.type === 'box') {
+            setActiveDrag(prev => ({ ...prev, currentX, currentY }));
+
+            const boxLeft = Math.min(activeDrag.startX, currentX);
+            const boxTop = Math.min(activeDrag.startY, currentY);
+            const boxRight = Math.max(activeDrag.startX, currentX);
+            const boxBottom = Math.max(activeDrag.startY, currentY);
+
+            const newSelection = new Set(activeDrag.initialSelection);
+
+            items.forEach(item => {
+                if (
+                    item.x >= boxLeft && item.x <= boxRight &&
+                    item.y >= boxTop && item.y <= boxBottom
+                ) {
+                    newSelection.add(item.id);
+                }
+            });
+            onSelectionChange(newSelection);
+        }
     };
 
     const handleMouseUp = () => {
-        setDragState(null);
-    };
-
-    // Click on background to deselect
-    const handleBackgroundClick = (e) => {
-        if (e.target === playgroundRef.current) {
-            onSelect(null);
-        }
+        setActiveDrag(null);
     };
 
     return (
@@ -65,10 +118,10 @@ export function Playground({ items, onAddItem, onUpdateItem, selectedId, onSelec
             ref={playgroundRef}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
+            onMouseDown={handleBackgroundMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
-            onClick={handleBackgroundClick}
             style={{
                 width: '100%',
                 height: '100%',
@@ -76,7 +129,8 @@ export function Playground({ items, onAddItem, onUpdateItem, selectedId, onSelec
                 overflow: 'hidden',
                 background: 'var(--bg-primary)',
                 backgroundImage: 'radial-gradient(var(--bg-tertiary) 1px, transparent 1px)',
-                backgroundSize: '20px 20px'
+                backgroundSize: '20px 20px',
+                userSelect: 'none'
             }}
         >
             {items.map(item => (
@@ -86,26 +140,39 @@ export function Playground({ items, onAddItem, onUpdateItem, selectedId, onSelec
                         position: 'absolute',
                         left: item.x,
                         top: item.y,
-                        zIndex: item.id === selectedId ? 10 : 1 // Bring selected to front
+                        zIndex: selectedIds.has(item.id) ? 10 : 1
                     }}
-                    onMouseDown={(e) => handleMouseDown(e, item)}
+                    onMouseDown={(e) => handleItemMouseDown(e, item)}
                 >
                     {item.type === 'drone' ? (
                         <Drone
-                            selected={item.id === selectedId}
-                            dragging={dragState?.id === item.id}
+                            selected={selectedIds.has(item.id)}
+                            dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
                         />
                     ) : (
                         <SimulationObject
                             data={item}
-                            selected={item.id === selectedId}
-                            dragging={dragState?.id === item.id}
+                            selected={selectedIds.has(item.id)}
+                            dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
                         />
                     )}
                 </div>
             ))}
 
-            {/* Instruction Overlay if empty */}
+            {activeDrag?.type === 'box' && (
+                <div style={{
+                    position: 'absolute',
+                    left: Math.min(activeDrag.startX, activeDrag.currentX),
+                    top: Math.min(activeDrag.startY, activeDrag.currentY),
+                    width: Math.abs(activeDrag.currentX - activeDrag.startX),
+                    height: Math.abs(activeDrag.currentY - activeDrag.startY),
+                    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                    border: '1px solid var(--accent-color)',
+                    pointerEvents: 'none',
+                    zIndex: 100
+                }} />
+            )}
+
             {items.length === 0 && (
                 <div style={{
                     position: 'absolute',

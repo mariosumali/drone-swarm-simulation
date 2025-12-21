@@ -1,11 +1,16 @@
 import React from 'react';
-import { Plane, Box, Circle, Square, Settings2 } from 'lucide-react';
+import { Plane, Box, Settings2, Trash2 } from 'lucide-react';
 
-export function Sidebar({ selectedItem, onUpdateItem }) {
+export function Sidebar({ items, selectedIds, onUpdateItem, onDelete }) {
     const handleDragStart = (e, type) => {
         e.dataTransfer.setData('application/react-dnd-type', type);
         e.dataTransfer.effectAllowed = 'copy';
     };
+
+    const selectionCount = selectedIds.size;
+    const singleSelectedItem = selectionCount === 1
+        ? items.find(i => selectedIds.has(i.id))
+        : null;
 
     return (
         <div style={{
@@ -54,15 +59,39 @@ export function Sidebar({ selectedItem, onUpdateItem }) {
             </div>
 
             <div style={{ padding: '1.5rem', flex: 1 }}>
-                <h2 style={{ fontSize: '0.875rem', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Settings2 size={16} /> Properties
-                </h2>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h2 style={{ fontSize: '0.875rem', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Settings2 size={16} /> Properties
+                    </h2>
+                    {selectionCount > 0 && (
+                        <button
+                            onClick={onDelete}
+                            title="Delete Selected"
+                            style={{ padding: '0.4em', background: 'var(--bg-tertiary)', color: '#ef4444', border: '1px solid var(--border-color)' }}
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    )}
+                </div>
 
-                {selectedItem ? (
+                {selectionCount === 0 ? (
+                    <div style={emptyStateStyle}>
+                        Select an item on the playground to edit its properties
+                    </div>
+                ) : selectionCount > 1 ? (
+                    <div style={emptyStateStyle}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                            {selectionCount} items selected
+                        </div>
+                        <div style={{ fontSize: '0.875rem' }}>
+                            Multi-edits not yet supported. Select a single item to edit properties.
+                        </div>
+                    </div>
+                ) : singleSelectedItem ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <div style={formGroupStyle}>
                             <label style={labelStyle}>ID</label>
-                            <input type="text" value={selectedItem.id.slice(0, 8)} disabled style={inputStyle} />
+                            <input type="text" value={singleSelectedItem.id.slice(0, 8)} disabled style={inputStyle} />
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
@@ -70,8 +99,8 @@ export function Sidebar({ selectedItem, onUpdateItem }) {
                                 <label style={labelStyle}>X Position</label>
                                 <input
                                     type="number"
-                                    value={Math.round(selectedItem.x)}
-                                    onChange={(e) => onUpdateItem(selectedItem.id, { x: parseInt(e.target.value) || 0 })}
+                                    value={Math.round(singleSelectedItem.x)}
+                                    onChange={(e) => onUpdateItem(singleSelectedItem.id, { x: parseInt(e.target.value) || 0 })}
                                     style={inputStyle}
                                 />
                             </div>
@@ -79,20 +108,20 @@ export function Sidebar({ selectedItem, onUpdateItem }) {
                                 <label style={labelStyle}>Y Position</label>
                                 <input
                                     type="number"
-                                    value={Math.round(selectedItem.y)}
-                                    onChange={(e) => onUpdateItem(selectedItem.id, { y: parseInt(e.target.value) || 0 })}
+                                    value={Math.round(singleSelectedItem.y)}
+                                    onChange={(e) => onUpdateItem(singleSelectedItem.id, { y: parseInt(e.target.value) || 0 })}
                                     style={inputStyle}
                                 />
                             </div>
                         </div>
 
-                        {selectedItem.type === 'object' && (
+                        {singleSelectedItem.type === 'object' && (
                             <>
                                 <div style={formGroupStyle}>
                                     <label style={labelStyle}>Shape</label>
                                     <select
-                                        value={selectedItem.shape || 'rectangle'}
-                                        onChange={(e) => onUpdateItem(selectedItem.id, { shape: e.target.value })}
+                                        value={singleSelectedItem.shape || 'rectangle'}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { shape: e.target.value })}
                                         style={selectStyle}
                                     >
                                         <option value="rectangle">Rectangle</option>
@@ -104,19 +133,19 @@ export function Sidebar({ selectedItem, onUpdateItem }) {
                                     <label style={labelStyle}>Width / Radius</label>
                                     <input
                                         type="number"
-                                        value={selectedItem.w || 50}
-                                        onChange={(e) => onUpdateItem(selectedItem.id, { w: parseInt(e.target.value) || 10 })}
+                                        value={singleSelectedItem.w || 50}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { w: parseInt(e.target.value) || 10 })}
                                         style={inputStyle}
                                     />
                                 </div>
 
-                                {selectedItem.shape !== 'circle' && (
+                                {singleSelectedItem.shape !== 'circle' && (
                                     <div style={formGroupStyle}>
                                         <label style={labelStyle}>Height</label>
                                         <input
                                             type="number"
-                                            value={selectedItem.h || 50}
-                                            onChange={(e) => onUpdateItem(selectedItem.id, { h: parseInt(e.target.value) || 10 })}
+                                            value={singleSelectedItem.h || 50}
+                                            onChange={(e) => onUpdateItem(singleSelectedItem.id, { h: parseInt(e.target.value) || 10 })}
                                             style={inputStyle}
                                         />
                                     </div>
@@ -126,29 +155,33 @@ export function Sidebar({ selectedItem, onUpdateItem }) {
                                     <label style={labelStyle}>Weight (kg)</label>
                                     <input
                                         type="number"
-                                        value={selectedItem.weight || 1.0}
-                                        onChange={(e) => onUpdateItem(selectedItem.id, { weight: parseFloat(e.target.value) || 0 })}
+                                        value={singleSelectedItem.weight || 1.0}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, { weight: parseFloat(e.target.value) || 0 })}
                                         step="0.1"
                                         style={inputStyle}
                                     />
                                 </div>
                             </>
                         )}
-                        {selectedItem.type === 'drone' && (
+                        {singleSelectedItem.type === 'drone' && (
                             <div style={{ padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: '6px', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                                 Drones are autonomous and have fixed physical properties in this simulation.
                             </div>
                         )}
                     </div>
-                ) : (
-                    <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', border: '1px dashed var(--border-color)', borderRadius: '8px' }}>
-                        Select an item on the playground to edit its properties
-                    </div>
-                )}
+                ) : null}
             </div>
         </div>
     );
 }
+
+const emptyStateStyle = {
+    padding: '2rem 1rem',
+    textAlign: 'center',
+    color: 'var(--text-secondary)',
+    border: '1px dashed var(--border-color)',
+    borderRadius: '8px'
+};
 
 const draggableStyle = {
     display: 'flex',

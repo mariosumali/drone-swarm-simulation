@@ -6,7 +6,7 @@ import { Playground } from './components/Playground';
 
 function App() {
     const [items, setItems] = useState([]);
-    const [selectedId, setSelectedId] = useState(null);
+    const [selectedIds, setSelectedIds] = useState(new Set());
 
     const addItem = (type, x, y) => {
         const newItem = {
@@ -20,12 +20,10 @@ function App() {
                 w: 100,
                 h: 100,
                 weight: 10
-            } : {
-                // Drone specific defaults if any
-            })
+            } : {})
         };
         setItems(prev => [...prev, newItem]);
-        setSelectedId(newItem.id);
+        setSelectedIds(new Set([newItem.id]));
     };
 
     const updateItem = (id, updates) => {
@@ -34,11 +32,27 @@ function App() {
         ));
     };
 
-    const selectedItem = items.find(i => i.id === selectedId);
+    const deleteSelected = () => {
+        if (selectedIds.size === 0) return;
+        setItems(prev => prev.filter(item => !selectedIds.has(item.id)));
+        setSelectedIds(new Set());
+    };
+
+    // Keyboard listeners for delete
+    React.useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                const activeTag = document.activeElement.tagName;
+                if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+                deleteSelected();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedIds]);
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {/* Header */}
             <header style={{
                 padding: '0 1.5rem',
                 height: '60px',
@@ -60,19 +74,20 @@ function App() {
                 </div>
             </header>
 
-            {/* Main Content */}
             <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
                 <Sidebar
-                    selectedItem={selectedItem}
+                    items={items}
+                    selectedIds={selectedIds}
                     onUpdateItem={updateItem}
+                    onDelete={deleteSelected}
                 />
                 <div style={{ flex: 1, position: 'relative' }}>
                     <Playground
                         items={items}
                         onAddItem={addItem}
                         onUpdateItem={updateItem}
-                        selectedId={selectedId}
-                        onSelect={setSelectedId}
+                        selectedIds={selectedIds}
+                        onSelectionChange={setSelectedIds}
                     />
                 </div>
             </div>
