@@ -1,4 +1,12 @@
 :root {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+}
+
+/* Dark Theme (default) */
+:root,
+[data-theme="dark"] {
     --bg-primary: #09090b;
     --bg-secondary: #18181b;
     --bg-tertiary: #27272a;
@@ -7,7 +15,6 @@
     --text-secondary: #a1a1aa;
 
     --accent-color: #6366f1;
-    /* Indigo */
     --accent-hover: #4f46e5;
 
     --border-color: #3f3f46;
@@ -15,11 +22,29 @@
     --glass-bg: rgba(24, 24, 27, 0.7);
     --glass-border: rgba(255, 255, 255, 0.1);
 
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    line-height: 1.5;
-    font-weight: 400;
-
     color-scheme: dark;
+    color: var(--text-primary);
+    background-color: var(--bg-primary);
+}
+
+/* Light Theme */
+[data-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f4f4f5;
+    --bg-tertiary: #e4e4e7;
+
+    --text-primary: #18181b;
+    --text-secondary: #52525b;
+
+    --accent-color: #6366f1;
+    --accent-hover: #4f46e5;
+
+    --border-color: #d4d4d8;
+
+    --glass-bg: rgba(255, 255, 255, 0.7);
+    --glass-border: rgba(0, 0, 0, 0.1);
+
+    color-scheme: light;
     color: var(--text-primary);
     background-color: var(--bg-primary);
 }

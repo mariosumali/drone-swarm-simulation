@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Layout, Undo, Redo } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Layout, Undo, Redo, Sun, Moon } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
 import { Playground } from './components/Playground';
@@ -30,6 +30,16 @@ function App() {
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
     const [showPathTracking, setShowPathTracking] = useState(true);
     const [clipboard, setClipboard] = useState([]);
+    const [theme, setTheme] = useState(() => {
+        const saved = localStorage.getItem('theme');
+        return saved || 'dark';
+    });
+
+    // Apply theme to document
+    useEffect(() => {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+    }, [theme]);
 
 
     const addItem = (type, x, y) => {
@@ -805,8 +815,28 @@ function App() {
                     </button>
                 </div>
 
-                <div style={{ marginLeft: 'auto', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                    {items.length} Entities
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                        {items.length} Entities
+                    </span>
+                    <button
+                        onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+                        style={{
+                            padding: '0.5rem',
+                            background: 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '8px',
+                            color: 'var(--text-primary)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s'
+                        }}
+                        title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                    >
+                        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                    </button>
                 </div>
                 {drawingMode && (
                     <div style={{
