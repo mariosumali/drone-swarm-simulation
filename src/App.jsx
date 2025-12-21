@@ -63,7 +63,8 @@ function App() {
             panSensitivity: 0.5,
             zoomSensitivity: 1,
             showObjectLabels: true,
-            pathSmoothness: 10
+            pathSmoothness: 10,
+            easing: 'linear'
         };
     });
 
@@ -110,6 +111,66 @@ function App() {
     };
 
     // Alignment functions
+    // Recording state
+    const [isRecording, setIsRecording] = useState(false);
+    const mediaRecorderRef = useRef(null);
+    const chunksRef = useRef([]);
+
+    const handleToggleRecord = async () => {
+        if (isRecording) {
+            // Stop recording
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                mediaRecorderRef.current.stop();
+                setIsRecording(false);
+            }
+        } else {
+            // Start recording
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { mediaSource: 'screen' }
+                });
+
+                const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                mediaRecorderRef.current = mediaRecorder;
+                chunksRef.current = [];
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        chunksRef.current.push(e.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `simulation-recording-${new Date().toISOString().slice(0, 19)}.webm`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+
+                    // Stop all tracks
+                    stream.getTracks().forEach(track => track.stop());
+                    setIsRecording(false);
+                };
+
+                mediaRecorder.start();
+                setIsRecording(true);
+
+                // Handle external stop (e.g. user clicks "Stop sharing" chrome bar)
+                stream.getVideoTracks()[0].onended = () => {
+                    if (mediaRecorder.state !== 'inactive') {
+                        mediaRecorder.stop();
+                    }
+                    setIsRecording(false);
+                };
+
+            } catch (err) {
+                console.error("Error starting recording:", err);
+            }
+        }
+    };
+
     const alignItems = (alignment) => {
         if (selectedIds.size < 2) return;
         const selectedItems = items.filter(item => selectedIds.has(item.id));
@@ -1470,6 +1531,25 @@ function App() {
                         <Settings size={18} />
                     </button>
                     <button
+                        onClick={handleToggleRecord}
+                        style={{
+                            padding: '0.5rem',
+                            background: isRecording ? '#ef4444' : 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '8px',
+                            color: isRecording ? 'white' : 'var(--text-primary)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s',
+                            animation: isRecording ? 'pulse 2s infinite' : 'none'
+                        }}
+                        title={isRecording ? "Stop Recording" : "Record Screen"}
+                    >
+                        <Video size={18} />
+                    </button>
+                    <button
                         onClick={() => setShowHelp(true)}
                         style={{
                             padding: '0.5rem',
@@ -1735,6 +1815,20 @@ function App() {
                                         />
                                         <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.pathSmoothness}</span>
                                     </label>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Easing Function</span>
+                                        <select
+                                            value={settings.easing}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, easing: e.target.value }))}
+                                            style={{ padding: '0.375rem 0.75rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                        >
+                                            <option value="linear">Linear</option>
+                                            <option value="easeInQuad">Ease In (Quad)</option>
+                                            <option value="easeOutQuad">Ease Out (Quad)</option>
+                                            <option value="easeInOutQuad">Ease In/Out (Quad)</option>
+                                            <option value="easeInOutCubic">Ease In/Out (Cubic)</option>
+                                        </select>
+                                    </label>
                                 </div>
                             </div>
 
@@ -1793,7 +1887,9 @@ function App() {
                                     panSensitivity: 0.5,
                                     zoomSensitivity: 1,
                                     showObjectLabels: true,
-                                    pathSmoothness: 10
+                                    showObjectLabels: true,
+                                    pathSmoothness: 10,
+                                    easing: 'linear'
                                 })}
                                 style={{
                                     padding: '0.75rem',

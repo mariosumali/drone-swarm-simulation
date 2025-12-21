@@ -46,10 +46,21 @@ export function getPointAtDistance(points, targetDistance) {
 }
 
 /**
+ * Easing functions
+ */
+export const EASING_FUNCTIONS = {
+    linear: t => t,
+    easeInQuad: t => t * t,
+    easeOutQuad: t => t * (2 - t),
+    easeInOutQuad: t => t < .5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+    easeInOutCubic: t => t < .5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1
+};
+
+/**
  * Interpolate along a custom path using progress (0-1)
  * Returns {x, y, rotation}
  */
-export function interpolateAlongPath(points, progress) {
+export function interpolateAlongPath(points, progress, easingType = 'linear') {
     if (!points || points.length === 0) {
         return { x: 0, y: 0, rotation: 0 };
     }
@@ -58,8 +69,11 @@ export function interpolateAlongPath(points, progress) {
         return { ...points[0], rotation: 0 };
     }
 
+    const easeFunc = EASING_FUNCTIONS[easingType] || EASING_FUNCTIONS.linear;
+    const easedProgress = easeFunc(progress);
+
     const totalLength = calculatePathLength(points);
-    const targetDistance = totalLength * progress;
+    const targetDistance = totalLength * easedProgress;
     const position = getPointAtDistance(points, targetDistance);
 
     // Calculate rotation based on path direction

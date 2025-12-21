@@ -1,7 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { Drone } from './Drone';
 import { SimulationObject } from './SimulationObject';
-import { interpolateAlongPath } from '../utils/pathInterpolation';
+import { interpolateAlongPath, EASING_FUNCTIONS } from '../utils/pathInterpolation';
+import { lineIntersectsObstacle, isPointInObstacle } from '../utils/pathfinding';
+import { AlertTriangle } from 'lucide-react';
 
 
 export function Playground({
@@ -47,7 +49,7 @@ export function Playground({
 
         // Check for custom path in the next state's position (new format for drone transport)
         if (nextPos.customPath && nextPos.customPath.length > 1) {
-            const result = interpolateAlongPath(nextPos.customPath, animationProgress);
+            const result = interpolateAlongPath(nextPos.customPath, animationProgress, settings.easing);
             return {
                 ...result,
                 rotation: interpolate(currentPos.rotation || 0, nextPos.rotation || 0, animationProgress)
@@ -63,7 +65,7 @@ export function Playground({
         const customPath = item.customTransitionPaths?.[pathKey];
 
         if (customPath && customPath.length > 1) {
-            return interpolateAlongPath(customPath, animationProgress);
+            return interpolateAlongPath(customPath, animationProgress, settings.easing);
         }
 
         // Drone locked to object - follow parent position
@@ -109,10 +111,13 @@ export function Playground({
         }
 
 
+        const easeFunc = EASING_FUNCTIONS[settings.easing] || EASING_FUNCTIONS.linear;
+        const navProgress = easeFunc(animationProgress);
+
         return {
-            x: interpolate(currentPos.x, nextPos.x, animationProgress),
-            y: interpolate(currentPos.y, nextPos.y, animationProgress),
-            rotation: interpolate(currentPos.rotation || 0, nextPos.rotation || 0, animationProgress)
+            x: interpolate(currentPos.x, nextPos.x, navProgress),
+            y: interpolate(currentPos.y, nextPos.y, navProgress),
+            rotation: interpolate(currentPos.rotation || 0, nextPos.rotation || 0, navProgress)
         };
     };
 
@@ -793,16 +798,81 @@ export function Playground({
                                 `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
                             ).join(' ');
 
+                            // Check for collisions
+                            const collisions = [];
+
+                            // Prepare obstacles (objects that are not drones and not the locked object)
+                            const obstacles = visibleItems.filter(obj =>
+                                obj.type !== 'drone' &&
+                                obj.id !== item.lockedToObject
+                            ).map(o => {
+                                // Find state ID for position check - use current state or next state from segments
+                                // For simplicity, we check against the obstacles' position in the states traversed
+                                // Here we just check against obstacle position in the 'from' states of the segments
+                                return {
+                                    ...o,
+                                    // Hack: passing the full object allows isPointInObstacle to look up statePositions
+                                    // But we need to know WHICH state. We'll simplify: check against obstacle pos in the FROM state of segment
+                                };
+                            });
+
+                            // Check each segment against obstacles
+                            let segmentIndex = 0;
+                            for (let i = 0; i < activeStates.length - 1; i++) {
+                                const fromState = activeStates[i];
+                                // We only check collisions if we have a valid segment
+                                // pathSegments is flattened, so we need to track where we are
+                                // Simplified approach: Check every segment in the flattened list
+                                // This assumes obstacles don't move drastically between states or we check against a "representative" state
+
+                                const obsInState = obstacles.map(o => ({ ...o, _checkStateId: fromState.id }));
+
+                                // How many points in this transition?
+                                const toState = activeStates[i + 1];
+                                const customPath = item.statePositions?.[toState.id]?.customPath;
+                                const count = (customPath && customPath.length > 1) ? customPath.length : 2; // 2 for straight line
+
+                                for (let k = 0; k < count - 1; k++) {
+                                    const p1 = pathSegments[segmentIndex + k];
+                                    const p2 = pathSegments[segmentIndex + k + 1];
+                                    if (!p1 || !p2) continue;
+
+                                    obsInState.forEach(obs => {
+                                        if (lineIntersectsObstacle(p1, p2, obs, 5)) {
+                                            collisions.push({
+                                                x: (p1.x + p2.x) / 2,
+                                                y: (p1.y + p2.y) / 2
+                                            });
+                                        }
+                                    });
+                                }
+                                segmentIndex += count; // This offset might be slightly off if we push isFirst logic, but close enough for viz
+                            }
+
                             return (
-                                <path
-                                    key={item.id}
-                                    d={pathData}
-                                    stroke={droneColor}
-                                    strokeWidth="2"
-                                    strokeDasharray="3,3"
-                                    fill="none"
-                                    opacity="0.7"
-                                />
+                                <g key={item.id}>
+                                    <path
+                                        d={pathData}
+                                        stroke={droneColor}
+                                        strokeWidth="2"
+                                        strokeDasharray="3,3"
+                                        fill="none"
+                                        opacity="0.7"
+                                    />
+                                    {collisions.map((col, idx) => (
+                                        <g key={`col-${idx}`} transform={`translate(${col.x}, ${col.y})`}>
+                                            <circle r="8" fill="#ef4444" stroke="white" strokeWidth="1" />
+                                            <text
+                                                textAnchor="middle"
+                                                dy="3"
+                                                fill="white"
+                                                fontSize="10"
+                                                fontWeight="bold"
+                                                style={{ pointerEvents: 'none' }}
+                                            >!</text>
+                                        </g>
+                                    ))}
+                                </g>
                             );
                         })}
                     </svg>
