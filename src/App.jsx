@@ -11,6 +11,7 @@ function App() {
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [viewport, setViewport] = useState({ zoom: 1, offsetX: 0, offsetY: 0 });
     const [drawingMode, setDrawingMode] = useState(null);
+    const [pathDrawingMode, setPathDrawingMode] = useState(null); // { objectId, fromStateId, toStateId, points }
 
     // History for undo/redo
     const [history, setHistory] = useState([]);
@@ -101,6 +102,65 @@ function App() {
         setItems(prev => [...prev, newItem]);
         setSelectedIds(new Set([newItem.id]));
         setDrawingMode(null);
+    };
+
+    // Path drawing functions
+    const startPathDrawing = (objectId, fromStateId, toStateId) => {
+        const object = items.find(i => i.id === objectId);
+        if (!object) return;
+
+        const fromPos = object.statePositions[fromStateId];
+        const toPos = object.statePositions[toStateId];
+
+        if (!fromPos || !toPos) return;
+
+        setPathDrawingMode({
+            objectId,
+            fromStateId,
+            toStateId,
+            points: [fromPos], // Start with just start point
+            endPoint: toPos, // Locked end point
+            isActive: false,
+            isComplete: false
+        });
+    };
+
+    const finishPathDrawing = () => {
+        if (!pathDrawingMode) return;
+
+        const { objectId, fromStateId, toStateId, points } = pathDrawingMode;
+        const pathKey = `${fromStateId}_to_${toStateId}`;
+
+        setItems(prev => prev.map(item => {
+            if (item.id === objectId) {
+                return {
+                    ...item,
+                    customTransitionPaths: {
+                        ...(item.customTransitionPaths || {}),
+                        [pathKey]: points
+                    }
+                };
+            }
+            return item;
+        }));
+
+        setPathDrawingMode(null);
+    };
+
+    const clearTransitionPath = (objectId, fromStateId, toStateId) => {
+        const pathKey = `${fromStateId}_to_${toStateId}`;
+
+        setItems(prev => prev.map(item => {
+            if (item.id === objectId) {
+                const newPaths = { ...(item.customTransitionPaths || {}) };
+                delete newPaths[pathKey];
+                return {
+                    ...item,
+                    customTransitionPaths: newPaths
+                };
+            }
+            return item;
+        }));
     };
 
     const updateItem = (id, updates) => {
@@ -588,10 +648,19 @@ function App() {
             if (e.key === 'Enter' && drawingMode) {
                 finishDrawing();
             }
+
+            // Path drawing shortcuts
+            if (e.key === 'Escape' && pathDrawingMode) {
+                setPathDrawingMode(null);
+            }
+
+            if (e.key === 'Enter' && pathDrawingMode) {
+                finishPathDrawing();
+            }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedIds, drawingMode]);
+    }, [selectedIds, drawingMode, pathDrawingMode]);
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -665,6 +734,18 @@ function App() {
                         Drawing Mode - Click to add points, Enter to finish, Esc to cancel
                     </div>
                 )}
+                {pathDrawingMode && (
+                    <div style={{
+                        padding: '0.5rem 1rem',
+                        background: 'rgba(245, 158, 11, 0.1)',
+                        border: '1px solid #f59e0b',
+                        borderRadius: '6px',
+                        fontSize: '0.875rem',
+                        color: '#f59e0b'
+                    }}>
+                        Path Drawing Mode - Click to add waypoints, Enter to finish, Esc to cancel
+                    </div>
+                )}
             </header>
 
             <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -681,6 +762,9 @@ function App() {
                     onGenerateGroundFormation={generateGroundFormation}
                     onGenerateAirFormation={generateAirFormation}
                     onUnlockFormation={unlockFormation}
+                    onStartPathDrawing={startPathDrawing}
+                    onClearPath={clearTransitionPath}
+                    pathDrawingMode={pathDrawingMode}
                 />
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <div style={{ flex: 1, position: 'relative' }}>
@@ -700,6 +784,9 @@ function App() {
                             animationProgress={animationProgress}
                             states={states}
                             showPathTracking={showPathTracking}
+                            pathDrawingMode={pathDrawingMode}
+                            onPathDrawingModeChange={setPathDrawingMode}
+                            onFinishPathDrawing={finishPathDrawing}
                         />
                         <EntityList
                             items={items}

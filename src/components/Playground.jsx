@@ -7,7 +7,8 @@ export function Playground({
     items, onAddItem, onUpdateItem, selectedIds, onSelectionChange,
     viewport, onViewportChange,
     drawingMode, onDrawingModeChange, onFinishDrawing,
-    currentStateId, isSimulating, animationProgress, states, showPathTracking
+    currentStateId, isSimulating, animationProgress, states, showPathTracking,
+    pathDrawingMode, onPathDrawingModeChange, onFinishPathDrawing
 }) {
     const playgroundRef = useRef(null);
     const contentRef = useRef(null);
@@ -134,6 +135,16 @@ export function Playground({
 
         if (drawingMode) return;
 
+        // Prevent dragging locked items
+        if (item.isLocked) {
+            // Still allow selection
+            if (!selectedIds.has(item.id)) {
+                const newSelection = e.shiftKey ? new Set([...selectedIds, item.id]) : new Set([item.id]);
+                onSelectionChange(newSelection);
+            }
+            return;
+        }
+
         let newSelection = new Set(selectedIds);
         if (!newSelection.has(item.id)) {
             if (!e.shiftKey) {
@@ -167,6 +178,27 @@ export function Playground({
                 ...drawingMode,
                 points: [...drawingMode.points, world]
             });
+            return;
+        }
+
+        if (pathDrawingMode) {
+            const world = screenToWorld(e.clientX, e.clientY);
+            const startPoint = pathDrawingMode.points[0];
+            const snapDistance = 50; // Increased leeway
+
+            const distToStart = Math.hypot(world.x - startPoint.x, world.y - startPoint.y);
+
+            if (distToStart <= snapDistance) {
+                setActiveDrag({
+                    type: 'path',
+                    isDrawing: true
+                });
+                onPathDrawingModeChange({
+                    ...pathDrawingMode,
+                    points: [startPoint],
+                    isActive: true
+                });
+            }
             return;
         }
 
@@ -226,6 +258,21 @@ export function Playground({
             const angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
 
             onUpdateItem(rotatingItem, { rotation: Math.round(angle) });
+            return;
+        }
+
+        // Path drawing - record points as mouse moves
+        if (activeDrag?.type === 'path' && pathDrawingMode) {
+            const world = screenToWorld(e.clientX, e.clientY);
+            const lastPoint = pathDrawingMode.points[pathDrawingMode.points.length - 1];
+
+            // Only add point if moved enough distance (smoothing)
+            if (!lastPoint || Math.hypot(world.x - lastPoint.x, world.y - lastPoint.y) > 5) {
+                onPathDrawingModeChange({
+                    ...pathDrawingMode,
+                    points: [...pathDrawingMode.points, world]
+                });
+            }
             return;
         }
 
@@ -364,70 +411,72 @@ export function Playground({
                     </svg>
                 )}
 
-                {visibleItems.map(item => {
-                    const pos = getItemPosition(item);
-                    return (
-                        <div
-                            key={item.id}
-                            style={{
-                                position: 'absolute',
-                                left: pos.x,
-                                top: pos.y,
-                                transform: `translate(-50%, -50%) rotate(${pos.rotation || 0}deg)`,
-                                zIndex: selectedIds.has(item.id) ? 10 : 1
-                            }}
-                            onMouseDown={(e) => handleItemMouseDown(e, item)}
-                        >
-                            {item.type === 'drone' ? (
-                                <Drone
-                                    selected={selectedIds.has(item.id)}
-                                    dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
-                                    droneType={item.droneType}
-                                    isInFormation={!!item.assignedObject}
-                                />
-                            ) : (
-                                <SimulationObject
-                                    data={item}
-                                    selected={selectedIds.has(item.id)}
-                                    dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
-                                />
-                            )}
+                {visibleItems
+                    .filter(item => !(pathDrawingMode && item.id === pathDrawingMode.objectId)) // Hide object being drawn
+                    .map(item => {
+                        const pos = getItemPosition(item);
+                        return (
+                            <div
+                                key={item.id}
+                                style={{
+                                    position: 'absolute',
+                                    left: pos.x,
+                                    top: pos.y,
+                                    transform: `translate(-50%, -50%) rotate(${pos.rotation || 0}deg)`,
+                                    zIndex: selectedIds.has(item.id) ? 10 : 1
+                                }}
+                                onMouseDown={(e) => handleItemMouseDown(e, item)}
+                            >
+                                {item.type === 'drone' ? (
+                                    <Drone
+                                        selected={selectedIds.has(item.id)}
+                                        dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
+                                        droneType={item.droneType}
+                                        isInFormation={!!item.assignedObject}
+                                    />
+                                ) : (
+                                    <SimulationObject
+                                        data={item}
+                                        selected={selectedIds.has(item.id)}
+                                        dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
+                                    />
+                                )}
 
-                            {/* Rotation Handle */}
-                            {selectedIds.has(item.id) && selectedIds.size === 1 && (
-                                <div
-                                    onMouseDown={(e) => {
-                                        e.stopPropagation();
-                                        setRotatingItem(item.id);
-                                    }}
-                                    style={{
-                                        position: 'absolute',
-                                        top: '-30px',
-                                        right: '-30px',
-                                        width: '24px',
-                                        height: '24px',
-                                        borderRadius: '50%',
-                                        background: 'var(--accent-color)',
-                                        border: '2px solid white',
-                                        cursor: 'grab',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                                        fontSize: '12px',
-                                        color: 'white',
-                                        fontWeight: 'bold',
-                                        transform: `rotate(-${pos.rotation || 0}deg)`,
-                                        zIndex: 100
-                                    }}
-                                    title="Drag to rotate"
-                                >
-                                    ↻
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
+                                {/* Rotation Handle */}
+                                {selectedIds.has(item.id) && selectedIds.size === 1 && (
+                                    <div
+                                        onMouseDown={(e) => {
+                                            e.stopPropagation();
+                                            setRotatingItem(item.id);
+                                        }}
+                                        style={{
+                                            position: 'absolute',
+                                            top: '-30px',
+                                            right: '-30px',
+                                            width: '24px',
+                                            height: '24px',
+                                            borderRadius: '50%',
+                                            background: 'var(--accent-color)',
+                                            border: '2px solid white',
+                                            cursor: 'grab',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                            fontSize: '12px',
+                                            color: 'white',
+                                            fontWeight: 'bold',
+                                            transform: `rotate(-${pos.rotation || 0}deg)`,
+                                            zIndex: 100
+                                        }}
+                                        title="Drag to rotate"
+                                    >
+                                        ↻
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
 
                 {activeDrag?.type === 'box' && (
                     <div style={{
@@ -454,6 +503,32 @@ export function Playground({
                         />
                         {drawingMode.points.map((p, i) => (
                             <circle key={i} cx={p.x} cy={p.y} r="4" fill="#4ade80" />
+                        ))}
+                    </svg>
+                )}
+
+                {/* Path Drawing Preview */}
+                {pathDrawingMode && pathDrawingMode.points.length > 1 && (
+                    <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 200 }}>
+                        <path
+                            d={pathDrawingMode.points.map((p, i) =>
+                                `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+                            ).join(' ')}
+                            fill="none"
+                            stroke="#f59e0b"
+                            strokeWidth="3"
+                            opacity="0.9"
+                        />
+                        {pathDrawingMode.points.map((p, i) => (
+                            <circle
+                                key={i}
+                                cx={p.x}
+                                cy={p.y}
+                                r="3"
+                                fill={i === 0 || i === pathDrawingMode.points.length - 1 ? "#10b981" : "#f59e0b"}
+                                stroke="white"
+                                strokeWidth="1"
+                            />
                         ))}
                     </svg>
                 )}

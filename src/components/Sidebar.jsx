@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plane, Square, Circle, Settings2, Trash2, Pencil, Edit3, Truck } from 'lucide-react';
 
-export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, currentStateId, onToggleItemInState, isSimulating, animationProgress, onGenerateGroundFormation, onGenerateAirFormation, onUnlockFormation }) {
+export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, currentStateId, onToggleItemInState, isSimulating, animationProgress, onGenerateGroundFormation, onGenerateAirFormation, onUnlockFormation, onStartPathDrawing, onClearPath, pathDrawingMode }) {
     const handleDragStart = (e, type) => {
         e.dataTransfer.setData('application/react-dnd-type', type);
         e.dataTransfer.effectAllowed = 'copy';
@@ -152,6 +152,40 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                     </div>
                 ) : singleSelectedItem ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {/* Lock and Obstacle Toggles */}
+                        {(singleSelectedItem.type === 'rectangle' || singleSelectedItem.type === 'circle' || singleSelectedItem.type === 'custom') && (
+                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', flex: '1 1 auto', fontSize: '0.875rem' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={singleSelectedItem.isLocked || false}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, {
+                                            isLocked: e.target.checked
+                                        })}
+                                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                    />
+                                    <span>🔒 Lock Position</span>
+                                </label>
+
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', flex: '1 1 auto', fontSize: '0.875rem' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={singleSelectedItem.isObstacle || false}
+                                        onChange={(e) => onUpdateItem(singleSelectedItem.id, {
+                                            isObstacle: e.target.checked,
+                                            ...(e.target.checked && {
+                                                transportMode: false,
+                                                assignedDrones: [],
+                                                formationLocked: false
+                                            })
+                                        })}
+                                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                    />
+                                    <span>🚧 Mark as Obstacle</span>
+                                </label>
+                            </div>
+                        )}
+
                         <div style={formGroupStyle}>
                             <label style={labelStyle}>ID</label>
                             <input type="text" value={singleSelectedItem.id.slice(0, 8)} disabled style={inputStyle} />
@@ -421,6 +455,74 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                         </div>
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Path Drawing Controls */}
+                        {(singleSelectedItem.type === 'rectangle' || singleSelectedItem.type === 'circle' || singleSelectedItem.type === 'custom') && states.length > 1 && (
+                            <div style={formGroupStyle}>
+                                <label style={{ ...labelStyle, marginBottom: '0.5rem' }}>Transition Paths</label>
+
+                                {states.map((state, idx) => {
+                                    if (idx === states.length - 1) return null; // No path from last state
+
+                                    const nextState = states[idx + 1];
+                                    const pathKey = `${state.id}_to_${nextState.id}`;
+                                    const hasCustomPath = singleSelectedItem.customTransitionPaths?.[pathKey];
+                                    const isDrawing = pathDrawingMode?.objectId === singleSelectedItem.id &&
+                                        pathDrawingMode?.fromStateId === state.id;
+
+                                    return (
+                                        <div key={pathKey} style={{
+                                            marginBottom: '0.5rem',
+                                            padding: '0.5rem',
+                                            background: 'var(--bg-primary)',
+                                            borderRadius: '4px'
+                                        }}>
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                                                {state.name} → {nextState.name}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                <button
+                                                    onClick={() => onStartPathDrawing(singleSelectedItem.id, state.id, nextState.id)}
+                                                    disabled={isSimulating || isDrawing}
+                                                    style={{
+                                                        ...inputStyle,
+                                                        flex: 1,
+                                                        cursor: (isSimulating || isDrawing) ? 'not-allowed' : 'pointer',
+                                                        background: isDrawing ? 'var(--accent-color)' : 'var(--bg-tertiary)',
+                                                        color: isDrawing ? 'white' : 'var(--text-primary)',
+                                                        border: '1px solid var(--border-color)',
+                                                        fontSize: '0.75rem',
+                                                        padding: '0.375rem',
+                                                        opacity: (isSimulating && !isDrawing) ? 0.6 : 1
+                                                    }}
+                                                >
+                                                    {hasCustomPath ? '✏️ Edit' : '➕ Draw'} Path
+                                                </button>
+
+                                                {hasCustomPath && (
+                                                    <button
+                                                        onClick={() => onClearPath(singleSelectedItem.id, state.id, nextState.id)}
+                                                        disabled={isSimulating}
+                                                        style={{
+                                                            ...inputStyle,
+                                                            cursor: isSimulating ? 'not-allowed' : 'pointer',
+                                                            background: 'var(--bg-tertiary)',
+                                                            color: '#ef4444',
+                                                            border: '1px solid var(--border-color)',
+                                                            fontSize: '0.75rem',
+                                                            padding: '0.375rem',
+                                                            opacity: isSimulating ? 0.6 : 1
+                                                        }}
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
 

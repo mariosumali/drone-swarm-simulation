@@ -27,9 +27,9 @@ export function SimulationObject({ data, selected, dragging }) {
             >
                 <path
                     d={pathString}
-                    fill="#4ade80"
-                    fillOpacity="0.8"
-                    stroke={selected ? 'var(--accent-color)' : '#22c55e'}
+                    fill={data.isObstacle ? '#6b7280' : '#4ade80'}
+                    fillOpacity={data.isObstacle ? '0.8' : '0.8'}
+                    stroke={data.isObstacle ? '#6b7280' : (selected ? 'var(--accent-color)' : '#22c55e')}
                     strokeWidth={selected ? 3 : 2}
                     transform={`translate(${svgWidth / 2}, ${svgHeight / 2})`}
                 />
@@ -48,10 +48,10 @@ export function SimulationObject({ data, selected, dragging }) {
                 top: `${-radius}px`,
                 width: `${radius * 2}px`,
                 height: `${radius * 2}px`,
-                backgroundColor: '#f472b6',
+                backgroundColor: data.isObstacle ? '#6b7280' : '#f472b6',
                 borderRadius: '50%',
                 cursor: dragging ? 'grabbing' : 'grab',
-                opacity: 0.9,
+                opacity: data.isObstacle ? 0.5 : 0.9,
                 boxShadow: selected ? '0 0 0 2px var(--accent-color), 0 0 15px rgba(244, 114, 182, 0.4)' : '0 4px 6px rgba(0,0,0,0.1)',
                 display: 'flex',
                 alignItems: 'center',
@@ -74,10 +74,10 @@ export function SimulationObject({ data, selected, dragging }) {
                 top: `${-height / 2}px`,
                 width: `${width}px`,
                 height: `${height}px`,
-                backgroundColor: '#f472b6',
+                backgroundColor: data.isObstacle ? '#6b7280' : '#f472b6',
                 borderRadius: '4px',
                 cursor: dragging ? 'grabbing' : 'grab',
-                opacity: 0.9,
+                opacity: data.isObstacle ? 0.5 : 0.9,
                 boxShadow: selected ? '0 0 0 2px var(--accent-color), 0 0 15px rgba(244, 114, 182, 0.4)' : '0 4px 6px rgba(0,0,0,0.1)',
                 display: 'flex',
                 alignItems: 'center',
