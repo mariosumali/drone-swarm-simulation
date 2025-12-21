@@ -29,6 +29,7 @@ function App() {
     const [animationProgress, setAnimationProgress] = useState(0);
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
     const [showPathTracking, setShowPathTracking] = useState(true);
+    const [clipboard, setClipboard] = useState([]);
 
 
     const addItem = (type, x, y) => {
@@ -694,10 +695,58 @@ function App() {
             if (e.key === 'Enter' && pathDrawingMode) {
                 finishPathDrawing();
             }
+
+            // Copy (Ctrl+C / Cmd+C)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+                if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+                if (selectedIds.size > 0) {
+                    const selectedItems = items.filter(item => selectedIds.has(item.id));
+                    setClipboard(selectedItems.map(item => ({ ...item })));
+                    console.log('Copied', selectedItems.length, 'items to clipboard');
+                }
+            }
+
+            // Paste (Ctrl+V / Cmd+V)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+                if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+                if (clipboard.length > 0) {
+                    e.preventDefault();
+                    const offset = 50; // Offset pasted items so they don't overlap
+                    const newItems = clipboard.map(item => {
+                        const newId = uuidv4();
+                        // Clone state positions with offset
+                        const newStatePositions = {};
+                        if (item.statePositions) {
+                            for (const [stateId, pos] of Object.entries(item.statePositions)) {
+                                newStatePositions[stateId] = {
+                                    ...pos,
+                                    x: pos.x + offset,
+                                    y: pos.y + offset
+                                };
+                            }
+                        }
+                        return {
+                            ...item,
+                            id: newId,
+                            statePositions: newStatePositions,
+                            // Clear formation-related properties
+                            assignedDrones: undefined,
+                            formationLocked: undefined,
+                            lockedToObject: undefined,
+                            assignedObject: undefined,
+                            relativeOffset: undefined
+                        };
+                    });
+                    setItems(prev => [...prev, ...newItems]);
+                    // Select the pasted items
+                    setSelectedIds(new Set(newItems.map(item => item.id)));
+                    console.log('Pasted', newItems.length, 'items');
+                }
+            }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedIds, drawingMode, pathDrawingMode]);
+    }, [selectedIds, drawingMode, pathDrawingMode, items, clipboard]);
 
     return (
         <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
