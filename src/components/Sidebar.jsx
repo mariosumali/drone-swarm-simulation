@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plane, Square, Circle, Settings2, Trash2, Pencil, Edit3, Truck } from 'lucide-react';
 
-export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, currentStateId, onToggleItemInState, isSimulating, animationProgress, onGenerateGroundFormation, onGenerateAirFormation }) {
+export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, currentStateId, onToggleItemInState, isSimulating, animationProgress, onGenerateGroundFormation, onGenerateAirFormation, onUnlockFormation }) {
     const handleDragStart = (e, type) => {
         e.dataTransfer.setData('application/react-dnd-type', type);
         e.dataTransfer.effectAllowed = 'copy';
@@ -335,6 +335,49 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                         ✈️ Air
                                     </button>
                                 </div>
+
+                                {/* Lock Status and Unlock Button */}
+                                {singleSelectedItem.formationLocked && (
+                                    <div style={{
+                                        marginTop: '0.5rem',
+                                        padding: '0.5rem',
+                                        background: 'var(--bg-primary)',
+                                        borderRadius: '4px',
+                                        border: '1px solid var(--accent-color)'
+                                    }}>
+                                        <div style={{
+                                            fontSize: '0.75rem',
+                                            color: 'var(--accent-color)',
+                                            fontWeight: 500,
+                                            marginBottom: '0.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.25rem'
+                                        }}>
+                                            🔒 Formation Locked
+                                        </div>
+                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                                            Drones will follow object movements
+                                        </div>
+                                        <button
+                                            onClick={() => onUnlockFormation(singleSelectedItem.id)}
+                                            disabled={isSimulating}
+                                            style={{
+                                                ...inputStyle,
+                                                width: '100%',
+                                                cursor: isSimulating ? 'not-allowed' : 'pointer',
+                                                background: 'var(--bg-tertiary)',
+                                                color: 'var(--text-secondary)',
+                                                border: '1px solid var(--border-color)',
+                                                fontSize: '0.75rem',
+                                                padding: '0.375rem',
+                                                opacity: isSimulating ? 0.6 : 1
+                                            }}
+                                        >
+                                            🔓 Unlock Formation
+                                        </button>
+                                    </div>
+                                )}
 
                                 {singleSelectedItem.assignedDrones?.length > 0 && (
                                     <div style={{

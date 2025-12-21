@@ -26,6 +26,7 @@ function App() {
     const [isSimulating, setIsSimulating] = useState(false);
     const [animationProgress, setAnimationProgress] = useState(0);
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
+    const [showPathTracking, setShowPathTracking] = useState(true);
 
 
     const addItem = (type, x, y) => {
@@ -104,26 +105,96 @@ function App() {
 
     const updateItem = (id, updates) => {
         setItems(prev => prev.map(item => {
-            if (item.id !== id) return item;
+            if (item.id === id) {
+                // Check if this is an object with locked drones
+                const isObjectWithLockedDrones = item.formationLocked && item.assignedDrones?.length > 0;
 
-            // If updating x, y, or rotation, update state position
-            if ('x' in updates || 'y' in updates || 'rotation' in updates) {
-                const currentPos = item.statePositions[currentStateId] || { x: 0, y: 0, rotation: 0 };
-                return {
-                    ...item,
-                    statePositions: {
-                        ...item.statePositions,
-                        [currentStateId]: {
-                            x: updates.x !== undefined ? updates.x : currentPos.x,
-                            y: updates.y !== undefined ? updates.y : currentPos.y,
-                            rotation: updates.rotation !== undefined ? updates.rotation : currentPos.rotation
+                if (isObjectWithLockedDrones) {
+                    // Get the changes being made
+                    const positionChanged = 'x' in updates || 'y' in updates;
+                    const rotationChanged = 'rotation' in updates;
+                    const sizeChanged = 'w' in updates || 'h' in updates || 'radius' in updates;
+
+                    // Store updatedObject for drone calculations INCLUDING state positions
+                    const currentPos = item.statePositions[currentStateId] || { x: 0, y: 0, rotation: 0 };
+                    const updatedObject = {
+                        ...item,
+                        ...updates,
+                        statePositions: {
+                            ...item.statePositions,
+                            [currentStateId]: {
+                                x: updates.x !== undefined ? updates.x : currentPos.x,
+                                y: updates.y !== undefined ? updates.y : currentPos.y,
+                                rotation: updates.rotation !== undefined ? updates.rotation : currentPos.rotation
+                            }
                         }
+                    };
+
+                    // Update positions if shape has changed
+                    if (positionChanged || rotationChanged || sizeChanged) {
+                        // Mark that we need to update locked drones
+                        updates._updateLockedDrones = true;
+                        updates._updatedObjectRef = updatedObject;
                     }
-                };
+                }
+
+                // Position/rotation updates (including from interpolation)
+                if ('x' in updates || 'y' in updates || 'rotation' in updates) {
+                    if (item.statePositions) {
+                        return {
+                            ...item,
+                            ...updates,
+                            statePositions: {
+                                ...item.statePositions,
+                                [currentStateId]: {
+                                    ...(item.statePositions[currentStateId] || {}),
+                                    x: updates.x !== undefined ? updates.x : item.statePositions[currentStateId]?.x || 0,
+                                    y: updates.y !== undefined ? updates.y : item.statePositions[currentStateId]?.y || 0,
+                                    rotation: updates.rotation !== undefined ? updates.rotation : (item.statePositions[currentStateId]?.rotation || 0)
+                                }
+                            }
+                        };
+                    }
+                }
+
+                // Other property updates
+                return { ...item, ...updates };
             }
 
-            // Other property updates
-            return { ...item, ...updates };
+            // Update locked drones when their object moves
+            if (item.lockedToObject && updates._updateLockedDrones) {
+                const isLockedToThisObject = item.lockedToObject === id;
+
+                if (isLockedToThisObject && item.relativeOffset && updates._updatedObjectRef) {
+                    const obj = updates._updatedObjectRef;
+                    const objPos = obj.statePositions?.[currentStateId];
+                    const objRotation = objPos?.rotation || 0;
+
+                    if (objPos) {
+                        // Apply rotation to offset
+                        const rad = (objRotation * Math.PI) / 180;
+                        const cos = Math.cos(rad);
+                        const sin = Math.sin(rad);
+
+                        const rotatedX = item.relativeOffset.x * cos - item.relativeOffset.y * sin;
+                        const rotatedY = item.relativeOffset.x * sin + item.relativeOffset.y * cos;
+
+                        return {
+                            ...item,
+                            statePositions: {
+                                ...item.statePositions,
+                                [currentStateId]: {
+                                    x: objPos.x + rotatedX,
+                                    y: objPos.y + rotatedY,
+                                    rotation: 0
+                                }
+                            }
+                        };
+                    }
+                }
+            }
+
+            return item;
         }));
     };
 
@@ -321,6 +392,7 @@ function App() {
                 return {
                     ...item,
                     transportMode: true,
+                    formationLocked: true,
                     assignedDrones: sortedDrones.map(d => d.drone.id)
                 };
             }
@@ -345,7 +417,9 @@ function App() {
                 return {
                     ...item,
                     assignedObject: objectId,
+                    lockedToObject: objectId,
                     formationOffset: formationOffsets[droneIndex],
+                    relativeOffset: formationOffsets[droneIndex],
                     statePositions: newStatePositions,
                     activeStates
                 };
@@ -391,6 +465,7 @@ function App() {
                 return {
                     ...item,
                     transportMode: true,
+                    formationLocked: true,
                     assignedDrones: sortedDrones.map(d => d.drone.id)
                 };
             }
@@ -415,9 +490,34 @@ function App() {
                 return {
                     ...item,
                     assignedObject: objectId,
+                    lockedToObject: objectId,
                     formationOffset: formationOffsets[droneIndex],
+                    relativeOffset: formationOffsets[droneIndex],
                     statePositions: newStatePositions,
                     activeStates
+                };
+            }
+
+            return item;
+        }));
+    };
+
+    // Unlock formation
+    const unlockFormation = (objectId) => {
+        setItems(prev => prev.map(item => {
+            // Unlock the object
+            if (item.id === objectId) {
+                return {
+                    ...item,
+                    formationLocked: false
+                };
+            }
+
+            // Unlock all drones assigned to this object
+            if (item.lockedToObject === objectId) {
+                return {
+                    ...item,
+                    lockedToObject: null
                 };
             }
 
@@ -430,7 +530,14 @@ function App() {
         if (!isSimulating || states.length < 2) return;
 
         const currentIndex = states.findIndex(s => s.id === currentStateId);
-        const nextIndex = (currentIndex + 1) % states.length;
+
+        // Stop at the last state instead of looping
+        if (currentIndex >= states.length - 1) {
+            setIsSimulating(false);
+            return;
+        }
+
+        const nextIndex = currentIndex + 1;
 
         const duration = 2000 / playbackSpeed; // 2 seconds per transition
         const startTime = Date.now();
@@ -573,6 +680,7 @@ function App() {
                     animationProgress={animationProgress}
                     onGenerateGroundFormation={generateGroundFormation}
                     onGenerateAirFormation={generateAirFormation}
+                    onUnlockFormation={unlockFormation}
                 />
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <div style={{ flex: 1, position: 'relative' }}>
@@ -591,6 +699,7 @@ function App() {
                             isSimulating={isSimulating}
                             animationProgress={animationProgress}
                             states={states}
+                            showPathTracking={showPathTracking}
                         />
                         <EntityList
                             items={items}
@@ -602,6 +711,8 @@ function App() {
                                 setSelectedIds(new Set());
                             }}
                             currentStateId={currentStateId}
+                            showPathTracking={showPathTracking}
+                            onTogglePathTracking={() => setShowPathTracking(!showPathTracking)}
                         />
                     </div>
                     <Timeline

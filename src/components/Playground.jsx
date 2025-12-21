@@ -7,7 +7,7 @@ export function Playground({
     items, onAddItem, onUpdateItem, selectedIds, onSelectionChange,
     viewport, onViewportChange,
     drawingMode, onDrawingModeChange, onFinishDrawing,
-    currentStateId, isSimulating, animationProgress, states
+    currentStateId, isSimulating, animationProgress, states, showPathTracking
 }) {
     const playgroundRef = useRef(null);
     const contentRef = useRef(null);
@@ -23,19 +23,54 @@ export function Playground({
 
     // Get item position (with interpolation during simulation)
     const getItemPosition = (item) => {
-        const currentPos = item.statePositions?.[currentStateId] || { x: 0, y: 0, rotation: 0 };
+        // For locked drones during simulation, calculate position relative to their object
+        if (item.lockedToObject && isSimulating && item.relativeOffset) {
+            const object = items.find(i => i.id === item.lockedToObject);
+            if (object) {
+                const currentStateIndex = states.findIndex(s => s.id === currentStateId);
+                const nextStateIndex = (currentStateIndex + 1) % states.length;
 
-        if (!isSimulating || !states || states.length < 2) {
-            return currentPos;
+                const currentObjPos = object.statePositions[states[currentStateIndex].id];
+                const nextObjPos = object.statePositions[states[nextStateIndex].id];
+
+                if (currentObjPos && nextObjPos) {
+                    // Interpolate object position
+                    const objX = interpolate(currentObjPos.x, nextObjPos.x, animationProgress);
+                    const objY = interpolate(currentObjPos.y, nextObjPos.y, animationProgress);
+                    const objRotation = interpolate(currentObjPos.rotation || 0, nextObjPos.rotation || 0, animationProgress);
+
+                    // Apply rotation to offset
+                    const rad = (objRotation * Math.PI) / 180;
+                    const cos = Math.cos(rad);
+                    const sin = Math.sin(rad);
+
+                    const rotatedX = item.relativeOffset.x * cos - item.relativeOffset.y * sin;
+                    const rotatedY = item.relativeOffset.x * sin + item.relativeOffset.y * cos;
+
+                    return {
+                        x: objX + rotatedX,
+                        y: objY + rotatedY,
+                        rotation: 0
+                    };
+                }
+            }
         }
 
-        // Find next state
-        const currentIndex = states.findIndex(s => s.id === currentStateId);
-        const nextIndex = (currentIndex + 1) % states.length;
-        const nextStateId = states[nextIndex].id;
-        const nextPos = item.statePositions?.[nextStateId] || currentPos;
+        // Regular item positioning
+        if (!isSimulating || !item.statePositions) {
+            return item.statePositions?.[currentStateId] || { x: 0, y: 0, rotation: 0 };
+        }
 
-        // Interpolate between current and next
+        const currentStateIndex = states.findIndex(s => s.id === currentStateId);
+        const nextStateIndex = (currentStateIndex + 1) % states.length;
+
+        const currentPos = item.statePositions[states[currentStateIndex].id];
+        const nextPos = item.statePositions[states[nextStateIndex].id];
+
+        if (!currentPos || !nextPos) {
+            return currentPos || nextPos || { x: 0, y: 0, rotation: 0 };
+        }
+
         return {
             x: interpolate(currentPos.x, nextPos.x, animationProgress),
             y: interpolate(currentPos.y, nextPos.y, animationProgress),
@@ -285,6 +320,50 @@ export function Playground({
                     backgroundPosition: '0 0'
                 }}
             >
+                {/* Path Tracking Lines */}
+                {showPathTracking && states && states.length > 1 && (
+                    <svg style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        pointerEvents: 'none',
+                        overflow: 'visible'
+                    }}>
+                        {visibleItems.filter(item => item.type !== 'drone').map((item, idx) => {
+                            // Generate color for this object
+                            const hue = (idx * 137.5) % 360; // Golden angle for color distribution
+                            const pathColor = `hsl(${hue}, 70%, 60%)`;
+
+                            // Get all state positions for this item
+                            const pathPoints = states
+                                .filter(state => item.activeStates?.includes(state.id))
+                                .map(state => item.statePositions?.[state.id])
+                                .filter(pos => pos);
+
+                            if (pathPoints.length < 2) return null;
+
+                            // Create SVG path
+                            const pathData = pathPoints.map((pos, i) =>
+                                `${i === 0 ? 'M' : 'L'} ${pos.x} ${pos.y}`
+                            ).join(' ');
+
+                            return (
+                                <path
+                                    key={item.id}
+                                    d={pathData}
+                                    stroke={pathColor}
+                                    strokeWidth="2"
+                                    strokeDasharray="5,5"
+                                    fill="none"
+                                    opacity="0.6"
+                                />
+                            );
+                        })}
+                    </svg>
+                )}
+
                 {visibleItems.map(item => {
                     const pos = getItemPosition(item);
                     return (

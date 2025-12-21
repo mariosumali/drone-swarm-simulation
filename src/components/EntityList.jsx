@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Layers, Plane, Square, Circle, Pencil, Eye, EyeOff, Trash2 } from 'lucide-react';
 
-export function EntityList({ items, selectedIds, onSelect, onUpdateItem, onDelete, currentStateId }) {
+export function EntityList({ items, selectedIds, onSelect, onUpdateItem, onDelete, currentStateId, showPathTracking, onTogglePathTracking }) {
     const [isExpanded, setIsExpanded] = useState(true);
     const [editingId, setEditingId] = useState(null);
     const [editName, setEditName] = useState('');
@@ -123,30 +123,85 @@ export function EntityList({ items, selectedIds, onSelect, onUpdateItem, onDelet
                 padding: '1rem',
                 borderBottom: '1px solid var(--border-color)',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
+                flexDirection: 'column',
+                gap: '0.75rem'
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Layers size={18} color="var(--accent-color)" />
-                    <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        Entities ({visibleItems.length})
-                    </h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Layers size={18} color="var(--accent-color)" />
+                        <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            Entities ({visibleItems.length})
+                        </h3>
+                    </div>
+                    <button
+                        onClick={() => setIsExpanded(false)}
+                        style={{
+                            background: 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            padding: '0.25rem',
+                            cursor: 'pointer',
+                            color: 'var(--text-secondary)',
+                            display: 'flex'
+                        }}
+                        title="Collapse"
+                    >
+                        <ChevronRight size={16} />
+                    </button>
                 </div>
+
+                {/* Path Tracking Toggle */}
                 <button
-                    onClick={() => setIsExpanded(false)}
+                    onClick={onTogglePathTracking}
                     style={{
-                        background: 'var(--bg-tertiary)',
+                        padding: '0.5rem',
+                        background: showPathTracking ? 'var(--accent-color)' : 'var(--bg-tertiary)',
                         border: '1px solid var(--border-color)',
                         borderRadius: '6px',
-                        padding: '0.25rem',
                         cursor: 'pointer',
-                        color: 'var(--text-secondary)',
-                        display: 'flex'
+                        color: showPathTracking ? 'white' : 'var(--text-primary)',
+                        fontSize: '0.75rem',
+                        fontWeight: 500,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        justifyContent: 'center'
                     }}
-                    title="Collapse"
                 >
-                    <ChevronRight size={16} />
+                    <Eye size={14} />
+                    {showPathTracking ? 'Hide' : 'Show'} Path Tracking
                 </button>
+
+                {/* Path Color Legend */}
+                {showPathTracking && visibleItems.filter(item => item.type !== 'drone').length > 0 && (
+                    <div style={{
+                        padding: '0.5rem',
+                        background: 'var(--bg-primary)',
+                        borderRadius: '6px',
+                        fontSize: '0.7rem'
+                    }}>
+                        <div style={{ fontWeight: 600, marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>
+                            Path Colors:
+                        </div>
+                        {visibleItems.filter(item => item.type !== 'drone').map((item, idx) => {
+                            const hue = (idx * 137.5) % 360;
+                            const pathColor = `hsl(${hue}, 70%, 60%)`;
+                            return (
+                                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                    <div style={{
+                                        width: '20px',
+                                        height: '2px',
+                                        background: pathColor,
+                                        borderRadius: '1px'
+                                    }} />
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.7rem' }}>
+                                        {item.customId || `${item.type}_${item.id.slice(0, 4)}`}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
             {/* Entity List */}
@@ -165,113 +220,267 @@ export function EntityList({ items, selectedIds, onSelect, onUpdateItem, onDelet
                         No entities in current state
                     </div>
                 ) : (
-                    visibleItems.map(item => {
-                        const isSelected = selectedIds.has(item.id);
-                        const isHovered = hoveredId === item.id;
-                        const color = getEntityColor(item.type);
+                    <>
+                        {/* Objects with locked drones */}
+                        {visibleItems.filter(item => item.type !== 'drone').map(item => {
+                            const isSelected = selectedIds.has(item.id);
+                            const isHovered = hoveredId === item.id;
+                            const color = getEntityColor(item.type);
+                            const lockedDrones = visibleItems.filter(d => d.lockedToObject === item.id);
 
-                        return (
-                            <div
-                                key={item.id}
-                                onClick={() => onSelect(new Set([item.id]))}
-                                onMouseEnter={() => setHoveredId(item.id)}
-                                onMouseLeave={() => setHoveredId(null)}
-                                style={{
-                                    padding: '0.75rem',
-                                    marginBottom: '0.5rem',
-                                    background: isSelected ? 'var(--accent-color)' : (isHovered ? 'var(--bg-tertiary)' : 'transparent'),
-                                    border: `1px solid ${isSelected ? 'var(--accent-color)' : 'var(--border-color)'}`,
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.75rem'
-                                }}
-                            >
-                                {/* Icon */}
-                                <div style={{
-                                    padding: '0.5rem',
-                                    background: isSelected ? 'rgba(255,255,255,0.2)' : `${color}20`,
-                                    borderRadius: '6px',
-                                    color: isSelected ? 'white' : color,
-                                    display: 'flex',
-                                    flexShrink: 0
-                                }}>
-                                    {getEntityIcon(item.type)}
-                                </div>
+                            return (
+                                <div key={item.id} style={{ marginBottom: '0.75rem' }}>
+                                    {/* Object */}
+                                    <div
+                                        onClick={() => onSelect(new Set([item.id]))}
+                                        onMouseEnter={() => setHoveredId(item.id)}
+                                        onMouseLeave={() => setHoveredId(null)}
+                                        style={{
+                                            padding: '0.75rem',
+                                            background: isSelected ? 'var(--accent-color)' : (isHovered ? 'var(--bg-tertiary)' : 'transparent'),
+                                            border: `1px solid ${isSelected ? 'var(--accent-color)' : 'var(--border-color)'}`,
+                                            borderRadius: '8px',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.75rem'
+                                        }}
+                                    >
+                                        {/* Icon */}
+                                        <div style={{
+                                            padding: '0.5rem',
+                                            background: isSelected ? 'rgba(255,255,255,0.2)' : `${color}20`,
+                                            borderRadius: '6px',
+                                            color: isSelected ? 'white' : color,
+                                            display: 'flex',
+                                            flexShrink: 0
+                                        }}>
+                                            {getEntityIcon(item.type)}
+                                        </div>
 
-                                {/* Info */}
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    {editingId === item.id ? (
-                                        <input
-                                            type="text"
-                                            value={editName}
-                                            onChange={(e) => setEditName(e.target.value)}
-                                            onBlur={handleFinishEdit}
-                                            onKeyDown={handleKeyDown}
-                                            autoFocus
-                                            onClick={(e) => e.stopPropagation()}
-                                            style={{
-                                                background: 'var(--bg-primary)',
-                                                border: '1px solid var(--border-color)',
-                                                borderRadius: '4px',
-                                                padding: '0.25rem 0.5rem',
-                                                color: 'var(--text-primary)',
-                                                fontSize: '0.875rem',
-                                                width: '100%'
-                                            }}
-                                        />
-                                    ) : (
-                                        <div
-                                            onDoubleClick={(e) => {
+                                        {/* Info */}
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            {editingId === item.id ? (
+                                                <input
+                                                    type="text"
+                                                    value={editName}
+                                                    onChange={(e) => setEditName(e.target.value)}
+                                                    onBlur={handleFinishEdit}
+                                                    onKeyDown={handleKeyDown}
+                                                    autoFocus
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    style={{
+                                                        background: 'var(--bg-primary)',
+                                                        border: '1px solid var(--border-color)',
+                                                        borderRadius: '4px',
+                                                        padding: '0.25rem 0.5rem',
+                                                        color: 'var(--text-primary)',
+                                                        fontSize: '0.875rem',
+                                                        width: '100%'
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div
+                                                    onDoubleClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleStartEdit(item);
+                                                    }}
+                                                    style={{
+                                                        fontSize: '0.875rem',
+                                                        fontWeight: 500,
+                                                        color: isSelected ? 'white' : 'var(--text-primary)',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap'
+                                                    }}
+                                                >
+                                                    {item.customId || `${item.type}_${item.id.slice(0, 4)}`}
+                                                    {item.formationLocked && ' 🔒'}
+                                                </div>
+                                            )}
+                                            <div style={{
+                                                fontSize: '0.75rem',
+                                                color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)',
+                                                marginTop: '0.125rem'
+                                            }}>
+                                                {item.type} • {lockedDrones.length > 0 ? `${lockedDrones.length} drones` : `${item.activeStates?.length || 0} states`}
+                                            </div>
+                                        </div>
+
+                                        {/* Actions */}
+                                        <button
+                                            onClick={(e) => {
                                                 e.stopPropagation();
-                                                handleStartEdit(item);
+                                                onDelete(new Set([item.id]));
                                             }}
                                             style={{
-                                                fontSize: '0.875rem',
-                                                fontWeight: 500,
-                                                color: isSelected ? 'white' : 'var(--text-primary)',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap'
+                                                background: 'transparent',
+                                                border: 'none',
+                                                padding: '0.25rem',
+                                                cursor: 'pointer',
+                                                color: isSelected ? 'white' : '#ef4444',
+                                                display: 'flex',
+                                                opacity: isHovered || isSelected ? 1 : 0,
+                                                transition: 'opacity 0.2s'
                                             }}
+                                            title="Delete"
                                         >
-                                            {item.customId || `${item.type}_${item.id.slice(0, 4)}`}
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+
+                                    {/* Locked Drones */}
+                                    {lockedDrones.length > 0 && (
+                                        <div style={{ marginLeft: '1.5rem', marginTop: '0.25rem' }}>
+                                            {lockedDrones.map(drone => {
+                                                const isDroneSelected = selectedIds.has(drone.id);
+                                                const isDroneHovered = hoveredId === drone.id;
+                                                const droneColor = drone.droneType === 'ground' ? '#8b5cf6' : '#60a5fa';
+
+                                                return (
+                                                    <div
+                                                        key={drone.id}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onSelect(new Set([drone.id]));
+                                                        }}
+                                                        onMouseEnter={() => setHoveredId(drone.id)}
+                                                        onMouseLeave={() => setHoveredId(null)}
+                                                        style={{
+                                                            padding: '0.5rem',
+                                                            marginBottom: '0.25rem',
+                                                            background: isDroneSelected ? droneColor : (isDroneHovered ? 'var(--bg-tertiary)' : 'transparent'),
+                                                            border: `1px solid ${isDroneSelected ? droneColor : 'var(--border-color)'}`,
+                                                            borderLeft: `3px solid ${droneColor}`,
+                                                            borderRadius: '6px',
+                                                            cursor: 'pointer',
+                                                            transition: 'all 0.2s',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '0.5rem',
+                                                            fontSize: '0.8rem'
+                                                        }}
+                                                    >
+                                                        <div style={{ color: isDroneSelected ? 'white' : droneColor }}>
+                                                            {drone.droneType === 'ground' ? '🚗' : '✈️'}
+                                                        </div>
+                                                        <div style={{
+                                                            flex: 1,
+                                                            color: isDroneSelected ? 'white' : 'var(--text-primary)',
+                                                            fontSize: '0.75rem',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis'
+                                                        }}>
+                                                            {drone.customId || `drone_${drone.id.slice(0, 4)}`}
+                                                        </div>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onDelete(new Set([drone.id]));
+                                                            }}
+                                                            style={{
+                                                                background: 'transparent',
+                                                                border: 'none',
+                                                                padding: '0.25rem',
+                                                                cursor: 'pointer',
+                                                                color: isDroneSelected ? 'white' : '#ef4444',
+                                                                display: 'flex',
+                                                                opacity: isDroneHovered || isDroneSelected ? 1 : 0,
+                                                                transition: 'opacity 0.2s'
+                                                            }}
+                                                            title="Delete"
+                                                        >
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     )}
-                                    <div style={{
-                                        fontSize: '0.75rem',
-                                        color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)',
-                                        marginTop: '0.125rem'
-                                    }}>
-                                        {item.type} • {item.activeStates?.length || 0} states
-                                    </div>
                                 </div>
+                            );
+                        })}
 
-                                {/* Actions */}
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onDelete(new Set([item.id]));
-                                    }}
+                        {/* Free drones (not locked to any object) */}
+                        {visibleItems.filter(item => item.type === 'drone' && !item.lockedToObject).map(item => {
+                            const isSelected = selectedIds.has(item.id);
+                            const isHovered = hoveredId === item.id;
+                            const color = item.droneType === 'ground' ? '#8b5cf6' : '#60a5fa';
+
+                            return (
+                                <div
+                                    key={item.id}
+                                    onClick={() => onSelect(new Set([item.id]))}
+                                    onMouseEnter={() => setHoveredId(item.id)}
+                                    onMouseLeave={() => setHoveredId(null)}
                                     style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        padding: '0.25rem',
+                                        padding: '0.75rem',
+                                        marginBottom: '0.5rem',
+                                        background: isSelected ? color : (isHovered ? 'var(--bg-tertiary)' : 'transparent'),
+                                        border: `1px solid ${isSelected ? color : 'var(--border-color)'}`,
+                                        borderRadius: '8px',
                                         cursor: 'pointer',
-                                        color: isSelected ? 'white' : '#ef4444',
+                                        transition: 'all 0.2s',
                                         display: 'flex',
-                                        opacity: isHovered || isSelected ? 1 : 0,
-                                        transition: 'opacity 0.2s'
+                                        alignItems: 'center',
+                                        gap: '0.75rem'
                                     }}
-                                    title="Delete"
                                 >
-                                    <Trash2 size={14} />
-                                </button>
-                            </div>
-                        );
-                    })
+                                    <div style={{
+                                        padding: '0.5rem',
+                                        background: isSelected ? 'rgba(255,255,255,0.2)' : `${color}20`,
+                                        borderRadius: '6px',
+                                        color: isSelected ? 'white' : color,
+                                        display: 'flex',
+                                        flexShrink: 0
+                                    }}>
+                                        {item.droneType === 'ground' ? '🚗' : '✈️'}
+                                    </div>
+
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{
+                                            fontSize: '0.875rem',
+                                            fontWeight: 500,
+                                            color: isSelected ? 'white' : 'var(--text-primary)',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap'
+                                        }}>
+                                            {item.customId || `drone_${item.id.slice(0, 4)}`}
+                                        </div>
+                                        <div style={{
+                                            fontSize: '0.75rem',
+                                            color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)',
+                                            marginTop: '0.125rem'
+                                        }}>
+                                            {item.droneType} • free
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDelete(new Set([item.id]));
+                                        }}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            padding: '0.25rem',
+                                            cursor: 'pointer',
+                                            color: isSelected ? 'white' : '#ef4444',
+                                            display: 'flex',
+                                            opacity: isHovered || isSelected ? 1 : 0,
+                                            transition: 'opacity 0.2s'
+                                        }}
+                                        title="Delete"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </>
                 )}
             </div>
         </div>
