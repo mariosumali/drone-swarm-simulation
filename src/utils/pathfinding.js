@@ -28,11 +28,49 @@ function isPointInObstacle(point, obstacle, margin = 10) {
     }
 
     if (obstacle.type === 'custom' && obstacle.customPath) {
-        // Simplified bounding box check for custom shapes
-        const w = (obstacle.w || 100) / 2 + margin;
-        const h = (obstacle.h || 100) / 2 + margin;
-        return point.x >= pos.x - w && point.x <= pos.x + w &&
-            point.y >= pos.y - h && point.y <= pos.y + h;
+        // Use ray casting algorithm for point-in-polygon test
+        const path = obstacle.customPath;
+
+        // Calculate scale factors
+        const xs = path.map(p => p.x);
+        const ys = path.map(p => p.y);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        const origW = maxX - minX || 1;
+        const origH = maxY - minY || 1;
+        const currentW = obstacle.w || origW;
+        const currentH = obstacle.h || origH;
+        const scaleX = currentW / origW;
+        const scaleY = currentH / origH;
+
+        // Transform point to local coordinates (relative to obstacle center)
+        const localX = point.x - pos.x;
+        const localY = point.y - pos.y;
+
+        // Scale path points to match current size (with margin)
+        const scaledPath = path.map(p => ({
+            x: p.x * scaleX,
+            y: p.y * scaleY
+        }));
+
+        // Expand polygon by margin using bounding box approximation for margin
+        const expandedPath = scaledPath.map(p => ({
+            x: p.x + (p.x > 0 ? margin : -margin) * 0.5,
+            y: p.y + (p.y > 0 ? margin : -margin) * 0.5
+        }));
+
+        // Ray casting algorithm
+        let inside = false;
+        for (let i = 0, j = expandedPath.length - 1; i < expandedPath.length; j = i++) {
+            const xi = expandedPath[i].x, yi = expandedPath[i].y;
+            const xj = expandedPath[j].x, yj = expandedPath[j].y;
+            const intersect = ((yi > localY) !== (yj > localY)) &&
+                (localX < (xj - xi) * (localY - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
     }
 
     return false;

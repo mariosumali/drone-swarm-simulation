@@ -239,8 +239,8 @@ export function Timeline({
                                 </div>
                             )}
 
-                            {/* Delete button (only show if more than 1 state) */}
-                            {states.length > 1 && (
+                            {/* Delete button (only show if more than 1 state and not initial state) */}
+                            {states.length > 1 && index > 0 && (
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();

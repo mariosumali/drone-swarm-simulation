@@ -87,39 +87,58 @@ export function calculateGroundCustomFormation(object, droneCount) {
     }
 
     const path = object.customPath;
+
+    // Calculate original bounding box
+    const xs = path.map(p => p.x);
+    const ys = path.map(p => p.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const origW = maxX - minX || 1;
+    const origH = maxY - minY || 1;
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    // Calculate scale factors based on current w/h vs original
+    const currentW = object.w || origW;
+    const currentH = object.h || origH;
+    const scaleX = currentW / origW;
+    const scaleY = currentH / origH;
+
     let totalPerimeter = 0;
 
     for (let i = 0; i < path.length; i++) {
         const p1 = path[i];
         const p2 = path[(i + 1) % path.length];
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
+        // Apply scaling to calculate correct perimeter
+        const dx = (p2.x - p1.x) * scaleX;
+        const dy = (p2.y - p1.y) * scaleY;
         totalPerimeter += Math.sqrt(dx * dx + dy * dy);
     }
 
     const spacing = totalPerimeter / droneCount;
     const positions = [];
-    let currentDistance = 0;
-    let edgeIndex = 0;
 
     for (let i = 0; i < droneCount; i++) {
         const targetDistance = i * spacing;
         let accumulatedDistance = 0;
 
-        edgeIndex = 0;
         for (let j = 0; j < path.length; j++) {
             const p1 = path[j];
             const p2 = path[(j + 1) % path.length];
-            const dx = p2.x - p1.x;
-            const dy = p2.y - p1.y;
+            // Apply scaling
+            const dx = (p2.x - p1.x) * scaleX;
+            const dy = (p2.y - p1.y) * scaleY;
             const edgeLength = Math.sqrt(dx * dx + dy * dy);
 
             if (accumulatedDistance + edgeLength >= targetDistance) {
                 const distanceOnEdge = targetDistance - accumulatedDistance;
                 const t = distanceOnEdge / edgeLength;
+                // Position relative to center (0,0), with scaling applied
                 positions.push({
-                    x: p1.x + dx * t,
-                    y: p1.y + dy * t
+                    x: (p1.x - centerX) * scaleX + dx * t,
+                    y: (p1.y - centerY) * scaleY + dy * t
                 });
                 break;
             }
@@ -221,16 +240,22 @@ export function calculateAirCustomFormation(object, droneCount) {
         maxY = Math.max(maxY, p.y);
     });
 
-    const width = maxX - minX;
-    const height = maxY - minY;
+    const origW = maxX - minX || 1;
+    const origH = maxY - minY || 1;
     const centerX = (minX + maxX) / 2;
     const centerY = (minY + maxY) / 2;
 
+    // Calculate scale factors based on current w/h vs original
+    const currentW = object.w || origW;
+    const currentH = object.h || origH;
+    const scaleX = currentW / origW;
+    const scaleY = currentH / origH;
+
     const positions = [];
-    const cols = Math.ceil(Math.sqrt(droneCount * (width / height)));
+    const cols = Math.ceil(Math.sqrt(droneCount * (origW / origH)));
     const rows = Math.ceil(droneCount / cols);
-    const spacingX = width / (cols + 1);
-    const spacingY = height / (rows + 1);
+    const spacingX = origW / (cols + 1);
+    const spacingY = origH / (rows + 1);
 
     const isInside = (x, y) => {
         let inside = false;
@@ -250,7 +275,11 @@ export function calculateAirCustomFormation(object, droneCount) {
             const y = minY + spacingY * (row + 0.5);
 
             if (isInside(x, y)) {
-                positions.push({ x: x - centerX, y: y - centerY });
+                // Apply scaling to the centered position
+                positions.push({
+                    x: (x - centerX) * scaleX,
+                    y: (y - centerY) * scaleY
+                });
             }
         }
         if (positions.length >= droneCount) break;

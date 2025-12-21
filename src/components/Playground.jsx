@@ -5,11 +5,12 @@ import { ZoomControls } from './ZoomControls';
 import { interpolateAlongPath } from '../utils/pathInterpolation';
 
 export function Playground({
-    items, onAddItem, onUpdateItem, selectedIds, onSelectionChange,
+    items, onAddItem, onUpdateItem, onDeleteItem, selectedIds, onSelectionChange,
     viewport, onViewportChange,
     drawingMode, onDrawingModeChange, onFinishDrawing,
     currentStateId, isSimulating, animationProgress, states, showPathTracking,
-    pathDrawingMode, onPathDrawingModeChange, onFinishPathDrawing
+    pathDrawingMode, onPathDrawingModeChange, onFinishPathDrawing,
+    settings = {}
 }) {
     const playgroundRef = useRef(null);
     const contentRef = useRef(null);
@@ -208,16 +209,21 @@ export function Playground({
             return;
         }
 
-        if (!e.shiftKey) {
-            onSelectionChange(new Set());
+        // Shift+drag = pan
+        if (e.shiftKey) {
+            setIsPanning(true);
+            setPanStart({ x: e.clientX, y: e.clientY });
+            return;
         }
 
+        // Regular drag = selection box
+        onSelectionChange(new Set());
         const world = screenToWorld(e.clientX, e.clientY);
         setActiveDrag({
             type: 'box',
             startWorld: world,
             currentWorld: world,
-            initialSelection: e.shiftKey ? new Set(selectedIds) : new Set()
+            initialSelection: new Set()
         });
     };
 
@@ -304,6 +310,25 @@ export function Playground({
                 newY_local = -(newH - activeDrag.startH) / 2;
             }
 
+            // Apply snap to grid for resizing if enabled
+            if (settings.snapToGrid && settings.gridSize) {
+                newW = Math.round(newW / settings.gridSize) * settings.gridSize;
+                newH = Math.round(newH / settings.gridSize) * settings.gridSize;
+                newW = Math.max(minSize, newW);
+                newH = Math.max(minSize, newH);
+                // Recalculate position shifts after snapping
+                if (dir.includes('e')) {
+                    newX_local = (newW - activeDrag.startW) / 2;
+                } else if (dir.includes('w')) {
+                    newX_local = -(newW - activeDrag.startW) / 2;
+                }
+                if (dir.includes('s')) {
+                    newY_local = (newH - activeDrag.startH) / 2;
+                } else if (dir.includes('n')) {
+                    newY_local = -(newH - activeDrag.startH) / 2;
+                }
+            }
+
             // Convert local shift back to world space for the center position update
             const finalAngle = (activeDrag.startRotation * Math.PI / 180);
             const shiftX = newX_local * Math.cos(finalAngle) - newY_local * Math.sin(finalAngle);
@@ -388,9 +413,18 @@ export function Playground({
             const dy = currentWorld.y - activeDrag.mouseStartWorld.y;
 
             activeDrag.items.forEach(dragItem => {
+                let newX = dragItem.startX + dx;
+                let newY = dragItem.startY + dy;
+
+                // Apply snap to grid if enabled
+                if (settings.snapToGrid && settings.gridSize) {
+                    newX = Math.round(newX / settings.gridSize) * settings.gridSize;
+                    newY = Math.round(newY / settings.gridSize) * settings.gridSize;
+                }
+
                 onUpdateItem(dragItem.id, {
-                    x: dragItem.startX + dx,
-                    y: dragItem.startY + dy
+                    x: newX,
+                    y: newY
                 });
             });
         } else if (activeDrag.type === 'box') {
@@ -471,8 +505,8 @@ export function Playground({
                     height: '100%',
                     transform: `translate(${viewport.offsetX}px, ${viewport.offsetY}px) scale(${viewport.zoom})`,
                     transformOrigin: '0 0',
-                    backgroundImage: 'radial-gradient(var(--bg-tertiary) 1px, transparent 1px)',
-                    backgroundSize: '20px 20px',
+                    backgroundImage: settings.showGrid !== false ? 'radial-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px)' : 'none',
+                    backgroundSize: `${settings.gridSize || 20}px ${settings.gridSize || 20}px`,
                     backgroundPosition: '0 0'
                 }}
             >
@@ -576,41 +610,83 @@ export function Playground({
                                         selected={selectedIds.has(item.id)}
                                         dragging={activeDrag?.type === 'item' && selectedIds.has(item.id)}
                                         onResizeMouseDown={handleResizeMouseDown}
+                                        showLabels={settings.showObjectLabels !== false}
                                     />
                                 )}
 
-                                {/* Rotation Handle */}
-                                {selectedIds.has(item.id) && selectedIds.size === 1 && (
-                                    <div
-                                        onMouseDown={(e) => {
-                                            e.stopPropagation();
-                                            setRotatingItem(item.id);
-                                        }}
-                                        style={{
-                                            position: 'absolute',
-                                            top: '-30px',
-                                            right: '-30px',
-                                            width: '24px',
-                                            height: '24px',
-                                            borderRadius: '50%',
-                                            background: 'var(--accent-color)',
-                                            border: '2px solid white',
-                                            cursor: 'grab',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                                            fontSize: '12px',
-                                            color: 'white',
-                                            fontWeight: 'bold',
-                                            transform: `rotate(-${pos.rotation || 0}deg)`,
-                                            zIndex: 100
-                                        }}
-                                        title="Drag to rotate"
-                                    >
-                                        ↻
-                                    </div>
-                                )}
+                                {/* Delete Button - Top Left of shape */}
+                                {selectedIds.has(item.id) && selectedIds.size === 1 && (() => {
+                                    const w = item.w || (item.radius ? item.radius * 2 : 100);
+                                    const h = item.h || (item.radius ? item.radius * 2 : 100);
+                                    return (
+                                        <div
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (onDeleteItem) onDeleteItem(item.id);
+                                            }}
+                                            style={{
+                                                position: 'absolute',
+                                                top: `${-h / 2 - 12}px`,
+                                                left: `${-w / 2 - 12}px`,
+                                                width: '24px',
+                                                height: '24px',
+                                                borderRadius: '50%',
+                                                background: '#ef4444',
+                                                border: '2px solid white',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                                fontSize: '14px',
+                                                color: 'white',
+                                                fontWeight: 'bold',
+                                                transform: `rotate(-${pos.rotation || 0}deg)`,
+                                                zIndex: 100
+                                            }}
+                                            title="Delete"
+                                        >
+                                            ✕
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Rotation Handle - Top Right of shape */}
+                                {selectedIds.has(item.id) && selectedIds.size === 1 && (() => {
+                                    const w = item.w || (item.radius ? item.radius * 2 : 100);
+                                    const h = item.h || (item.radius ? item.radius * 2 : 100);
+                                    return (
+                                        <div
+                                            onMouseDown={(e) => {
+                                                e.stopPropagation();
+                                                setRotatingItem(item.id);
+                                            }}
+                                            style={{
+                                                position: 'absolute',
+                                                top: `${-h / 2 - 12}px`,
+                                                right: `${-w / 2 - 12}px`,
+                                                width: '24px',
+                                                height: '24px',
+                                                borderRadius: '50%',
+                                                background: 'var(--accent-color)',
+                                                border: '2px solid white',
+                                                cursor: 'grab',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                                fontSize: '12px',
+                                                color: 'white',
+                                                fontWeight: 'bold',
+                                                transform: `rotate(-${pos.rotation || 0}deg)`,
+                                                zIndex: 100
+                                            }}
+                                            title="Drag to rotate"
+                                        >
+                                            ↻
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         );
                     })}
@@ -723,7 +799,7 @@ export function Playground({
                     textAlign: 'center'
                 }}>
                     <p>Drag items from the sidebar to start</p>
-                    <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Scroll to zoom • Drag to pan • Shift+Drag to select</p>
+                    <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Scroll to zoom • Drag to select • Shift+Drag to pan</p>
                 </div>
             )}
 

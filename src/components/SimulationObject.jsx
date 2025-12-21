@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function SimulationObject({ data, selected, dragging, onResizeMouseDown }) {
+export function SimulationObject({ data, selected, dragging, onResizeMouseDown, showLabels = true }) {
     const { type } = data;
 
     // Common handle styles
@@ -50,7 +50,7 @@ export function SimulationObject({ data, selected, dragging, onResizeMouseDown }
 
     // Custom drawn path
     if (type === 'custom' && data.customPath) {
-        // Calculate original bounds from points
+        // Points are already centered around (0,0) - calculate actual bounds
         const xs = data.customPath.map(p => p.x);
         const ys = data.customPath.map(p => p.y);
         const minX = Math.min(...xs);
@@ -60,57 +60,73 @@ export function SimulationObject({ data, selected, dragging, onResizeMouseDown }
         const origW = maxX - minX || 1;
         const origH = maxY - minY || 1;
 
+        // Current dimensions (may be scaled from original)
         const currentW = data.w || origW;
         const currentH = data.h || origH;
 
+        // Scale factors
         const scaleX = currentW / origW;
         const scaleY = currentH / origH;
 
-        const pathString = data.customPath.map((p, i) =>
+        // Create path string from SCALED points centered at origin
+        const scaledPath = data.customPath.map(p => ({
+            x: p.x * scaleX,
+            y: p.y * scaleY
+        }));
+
+        const pathString = scaledPath.map((p, i) =>
             `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
         ).join(' ') + ' Z';
 
-        const containerPadding = 20;
+        // Calculate scaled bounds
+        const scaledMinX = minX * scaleX;
+        const scaledMaxX = maxX * scaleX;
+        const scaledMinY = minY * scaleY;
+        const scaledMaxY = maxY * scaleY;
+        const scaledW = scaledMaxX - scaledMinX;
+        const scaledH = scaledMaxY - scaledMinY;
+
+        const padding = 10;
 
         return (
             <div style={{
                 position: 'absolute',
-                left: `${-currentW / 2}px`,
-                top: `${-currentH / 2}px`,
-                width: `${currentW}px`,
-                height: `${currentH}px`,
+                left: `${scaledMinX - padding}px`,
+                top: `${scaledMinY - padding}px`,
+                width: `${scaledW + padding * 2}px`,
+                height: `${scaledH + padding * 2}px`,
                 pointerEvents: 'none'
             }}>
                 <svg
                     style={{
                         position: 'absolute',
-                        top: -containerPadding / 2,
-                        left: -containerPadding / 2,
-                        width: currentW + containerPadding,
-                        height: currentH + containerPadding,
-                        cursor: dragging ? 'grabbing' : 'grab',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
                         overflow: 'visible',
+                        cursor: dragging ? 'grabbing' : 'grab',
                         filter: selected ? 'drop-shadow(0 0 8px var(--accent-color))' : 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
                         pointerEvents: 'auto'
                     }}
-                    viewBox={`${minX - containerPadding / 2} ${minY - containerPadding / 2} ${origW + containerPadding} ${origH + containerPadding}`}
+                    viewBox={`${scaledMinX - padding} ${scaledMinY - padding} ${scaledW + padding * 2} ${scaledH + padding * 2}`}
                 >
-                    <g transform={`translate(${currentW / 2}, ${currentH / 2}) scale(${scaleX}, ${scaleY}) translate(${-minX - origW / 2}, ${-minY - origH / 2})`}>
-                        <path
-                            d={pathString}
-                            fill={data.isObstacle ? '#6b7280' : '#4ade80'}
-                            fillOpacity={data.isObstacle ? '0.8' : '0.8'}
-                            stroke={data.isObstacle ? '#6b7280' : (selected ? 'var(--accent-color)' : '#22c55e')}
-                            strokeWidth={(selected ? 3 : 2) / Math.max(scaleX, scaleY)} // Inverse scale stroke to keep constant width
-                            vectorEffect="non-scaling-stroke"
-                        />
-                        <circle cx={minX + origW / 2} cy={minY + origH / 2} r={3 / Math.max(scaleX, scaleY)} fill="rgba(0,0,0,0.3)" />
-                    </g>
+                    <path
+                        d={pathString}
+                        fill={data.isObstacle ? '#6b7280' : '#4ade80'}
+                        fillOpacity={data.isObstacle ? '0.8' : '0.8'}
+                        stroke={data.isObstacle ? '#6b7280' : (selected ? 'var(--accent-color)' : '#22c55e')}
+                        strokeWidth={selected ? 3 : 2}
+                        vectorEffect="non-scaling-stroke"
+                    />
+                    {/* Center marker */}
+                    <circle cx={0} cy={0} r={3} fill="rgba(255,255,255,0.5)" />
                 </svg>
                 {/* Render handles on the bounding box */}
                 <div style={{
                     position: 'absolute',
-                    top: 0, left: 0, right: 0, bottom: 0,
+                    top: padding, left: padding,
+                    width: scaledW, height: scaledH,
                     pointerEvents: 'none'
                 }}>
                     {renderHandles()}
@@ -142,8 +158,9 @@ export function SimulationObject({ data, selected, dragging, onResizeMouseDown }
                 justifyContent: 'center',
                 userSelect: 'none'
             }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'white', opacity: 0.8 }}>
-                    {data.customId || data.id.slice(0, 4)}
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'white', opacity: 0.8, display: showLabels ? 'flex' : 'none', alignItems: 'center', gap: '4px' }}>
+                    {data.isLocked && <span>🔒</span>}
+                    <span>{data.customName || data.customId || data.id.slice(0, 4)}</span>
                 </div>
                 {renderHandles()}
             </div>
@@ -171,8 +188,9 @@ export function SimulationObject({ data, selected, dragging, onResizeMouseDown }
                 justifyContent: 'center',
                 userSelect: 'none'
             }}>
-                <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white' }}>
-                    {data.customId || data.id.slice(0, 4)}
+                <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white', display: showLabels ? 'flex' : 'none', alignItems: 'center', gap: '4px' }}>
+                    {data.isLocked && <span>🔒</span>}
+                    <span>{data.customName || data.customId || data.id.slice(0, 4)}</span>
                 </div>
                 {renderHandles()}
             </div>

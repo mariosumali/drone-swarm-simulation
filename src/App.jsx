@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Layout, Undo, Redo, Sun, Moon } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Layout, Undo, Redo, Sun, Moon, Save, FolderOpen, Settings, X } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
 import { Playground } from './components/Playground';
@@ -40,6 +40,29 @@ function App() {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('theme', theme);
     }, [theme]);
+
+    // Settings
+    const [showSettings, setShowSettings] = useState(false);
+    const [settings, setSettings] = useState(() => {
+        const saved = localStorage.getItem('simulationSettings');
+        return saved ? JSON.parse(saved) : {
+            gridSize: 20,
+            snapToGrid: false,
+            showGrid: true,
+            animationDuration: 2,
+            defaultDroneType: 'air',
+            autoSave: false,
+            panSensitivity: 0.5,
+            zoomSensitivity: 1,
+            showObjectLabels: true,
+            pathSmoothness: 10
+        };
+    });
+
+    // Save settings to localStorage
+    useEffect(() => {
+        localStorage.setItem('simulationSettings', JSON.stringify(settings));
+    }, [settings]);
 
 
     const addItem = (type, x, y) => {
@@ -384,6 +407,7 @@ function App() {
 
     const deleteState = (stateId) => {
         if (states.length <= 1) return; // Keep at least one state
+        if (stateId === states[0].id) return; // Cannot delete initial state
 
         setStates(prev => prev.filter(s => s.id !== stateId));
 
@@ -815,6 +839,83 @@ function App() {
                     </button>
                 </div>
 
+                {/* Save/Load buttons */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginLeft: '0.5rem' }}>
+                    <button
+                        onClick={() => {
+                            const data = {
+                                version: 1,
+                                items,
+                                states,
+                                currentStateId,
+                                viewport
+                            };
+                            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `simulation-${new Date().toISOString().slice(0, 10)}.json`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                        }}
+                        style={{
+                            padding: '0.5rem',
+                            background: 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            color: 'var(--text-primary)',
+                            cursor: 'pointer',
+                            display: 'flex'
+                        }}
+                        title="Save Simulation"
+                    >
+                        <Save size={16} />
+                    </button>
+                    <button
+                        onClick={() => {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = '.json';
+                            input.onchange = (e) => {
+                                const file = e.target.files[0];
+                                if (file) {
+                                    const reader = new FileReader();
+                                    reader.onload = (event) => {
+                                        try {
+                                            const data = JSON.parse(event.target.result);
+                                            if (data.items) setItems(data.items);
+                                            if (data.states) setStates(data.states);
+                                            if (data.currentStateId) setCurrentStateId(data.currentStateId);
+                                            if (data.viewport) setViewport(data.viewport);
+                                            setSelectedIds(new Set());
+                                            setHistory([]);
+                                            setHistoryIndex(-1);
+                                            console.log('Simulation loaded successfully');
+                                        } catch (err) {
+                                            console.error('Failed to load simulation:', err);
+                                            alert('Failed to load simulation file');
+                                        }
+                                    };
+                                    reader.readAsText(file);
+                                }
+                            };
+                            input.click();
+                        }}
+                        style={{
+                            padding: '0.5rem',
+                            background: 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            color: 'var(--text-primary)',
+                            cursor: 'pointer',
+                            display: 'flex'
+                        }}
+                        title="Load Simulation"
+                    >
+                        <FolderOpen size={16} />
+                    </button>
+                </div>
+
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                         {items.length} Entities
@@ -836,6 +937,24 @@ function App() {
                         title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                     >
                         {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                    </button>
+                    <button
+                        onClick={() => setShowSettings(true)}
+                        style={{
+                            padding: '0.5rem',
+                            background: 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '8px',
+                            color: 'var(--text-primary)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s'
+                        }}
+                        title="Settings"
+                    >
+                        <Settings size={18} />
                     </button>
                 </div>
                 {drawingMode && (
@@ -904,6 +1023,11 @@ function App() {
                             pathDrawingMode={pathDrawingMode}
                             onPathDrawingModeChange={setPathDrawingMode}
                             onFinishPathDrawing={finishPathDrawing}
+                            settings={settings}
+                            onDeleteItem={(id) => {
+                                setItems(prev => prev.filter(item => item.id !== id));
+                                setSelectedIds(new Set());
+                            }}
                         />
                         <EntityList
                             items={items}
@@ -935,6 +1059,233 @@ function App() {
                     />
                 </div>
             </div>
+
+            {/* Settings Modal */}
+            {showSettings && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000
+                }} onClick={() => setShowSettings(false)}>
+                    <div style={{
+                        background: 'var(--bg-secondary)',
+                        borderRadius: '12px',
+                        border: '1px solid var(--border-color)',
+                        width: '500px',
+                        maxHeight: '80vh',
+                        overflow: 'auto',
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
+                    }} onClick={(e) => e.stopPropagation()}>
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '1rem 1.5rem',
+                            borderBottom: '1px solid var(--border-color)'
+                        }}>
+                            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Settings</h2>
+                            <button
+                                onClick={() => setShowSettings(false)}
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    padding: '0.25rem'
+                                }}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            {/* Canvas Settings */}
+                            <div>
+                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Canvas</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Show Grid</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={settings.showGrid}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, showGrid: e.target.checked }))}
+                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                        />
+                                    </label>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Grid Size</span>
+                                        <input
+                                            type="number"
+                                            value={settings.gridSize}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, gridSize: parseInt(e.target.value) || 20 }))}
+                                            style={{ width: '80px', padding: '0.375rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)' }}
+                                        />
+                                    </label>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Snap to Grid</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={settings.snapToGrid}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, snapToGrid: e.target.checked }))}
+                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                        />
+                                    </label>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Pan Sensitivity</span>
+                                        <input
+                                            type="range"
+                                            min="0.1"
+                                            max="2"
+                                            step="0.1"
+                                            value={settings.panSensitivity}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, panSensitivity: parseFloat(e.target.value) }))}
+                                            style={{ width: '100px', cursor: 'pointer' }}
+                                        />
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.panSensitivity}x</span>
+                                    </label>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Zoom Sensitivity</span>
+                                        <input
+                                            type="range"
+                                            min="0.5"
+                                            max="2"
+                                            step="0.1"
+                                            value={settings.zoomSensitivity}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, zoomSensitivity: parseFloat(e.target.value) }))}
+                                            style={{ width: '100px', cursor: 'pointer' }}
+                                        />
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.zoomSensitivity}x</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Animation Settings */}
+                            <div>
+                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Animation</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Animation Duration (seconds)</span>
+                                        <input
+                                            type="number"
+                                            min="0.5"
+                                            max="10"
+                                            step="0.5"
+                                            value={settings.animationDuration}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, animationDuration: parseFloat(e.target.value) || 2 }))}
+                                            style={{ width: '80px', padding: '0.375rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)' }}
+                                        />
+                                    </label>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Path Smoothness</span>
+                                        <input
+                                            type="range"
+                                            min="1"
+                                            max="20"
+                                            step="1"
+                                            value={settings.pathSmoothness}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, pathSmoothness: parseInt(e.target.value) }))}
+                                            style={{ width: '100px', cursor: 'pointer' }}
+                                        />
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.pathSmoothness}</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Objects Settings */}
+                            <div>
+                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Objects</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Default Drone Type</span>
+                                        <select
+                                            value={settings.defaultDroneType}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, defaultDroneType: e.target.value }))}
+                                            style={{ padding: '0.375rem 0.75rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                        >
+                                            <option value="air">Air Drone</option>
+                                            <option value="ground">Ground Drone</option>
+                                        </select>
+                                    </label>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Show Object Labels</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={settings.showObjectLabels}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, showObjectLabels: e.target.checked }))}
+                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* System Settings */}
+                            <div>
+                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>System</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Auto-Save to Browser</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={settings.autoSave}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, autoSave: e.target.checked }))}
+                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Reset Button */}
+                            <button
+                                onClick={() => setSettings({
+                                    gridSize: 20,
+                                    snapToGrid: false,
+                                    showGrid: true,
+                                    animationDuration: 2,
+                                    defaultDroneType: 'air',
+                                    autoSave: false,
+                                    panSensitivity: 0.5,
+                                    zoomSensitivity: 1,
+                                    showObjectLabels: true,
+                                    pathSmoothness: 10
+                                })}
+                                style={{
+                                    padding: '0.75rem',
+                                    background: 'var(--bg-tertiary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '8px',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    fontSize: '0.875rem',
+                                    fontWeight: 500,
+                                    marginTop: '0.5rem'
+                                }}
+                            >
+                                Reset to Defaults
+                            </button>
+                            <button
+                                onClick={() => setShowSettings(false)}
+                                style={{
+                                    padding: '0.75rem',
+                                    background: 'var(--accent-color)',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    fontSize: '0.875rem',
+                                    fontWeight: 500,
+                                    marginTop: '0.5rem'
+                                }}
+                            >
+                                Save & Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

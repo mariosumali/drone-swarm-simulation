@@ -187,6 +187,17 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                         )}
 
                         <div style={formGroupStyle}>
+                            <label style={labelStyle}>Name</label>
+                            <input
+                                type="text"
+                                value={singleSelectedItem.customName || ''}
+                                onChange={(e) => onUpdateItem(singleSelectedItem.id, { customName: e.target.value })}
+                                placeholder={singleSelectedItem.type.charAt(0).toUpperCase() + singleSelectedItem.type.slice(1) + ' ' + singleSelectedItem.id.slice(0, 4)}
+                                style={inputStyle}
+                            />
+                        </div>
+
+                        <div style={formGroupStyle}>
                             <label style={labelStyle}>ID</label>
                             <input type="text" value={singleSelectedItem.id.slice(0, 8)} disabled style={inputStyle} />
                         </div>
