@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Layout, Undo, Redo, Sun, Moon, Save, FolderOpen, Settings, X } from 'lucide-react';
+import { Undo, Redo, Sun, Moon, Save, FolderOpen, Settings, X } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
 import { Playground } from './components/Playground';
@@ -830,9 +830,7 @@ function App() {
                 gap: '1rem',
                 flexShrink: 0
             }}>
-                <div style={{ padding: '0.4rem', background: 'var(--accent-color)', borderRadius: '6px', display: 'flex' }}>
-                    <Layout size={20} color="white" />
-                </div>
+                <img src="/logo.png" alt="Logo" style={{ width: '32px', height: '32px', borderRadius: '6px' }} />
                 <h1 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
                     Drone Swarm Simulation
                 </h1>

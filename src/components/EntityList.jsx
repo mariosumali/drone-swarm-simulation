@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Layers, Plane, Square, Circle, Pencil, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plane, Square, Circle, Pencil, Eye, EyeOff, Trash2 } from 'lucide-react';
 
 export function EntityList({ items, selectedIds, onSelect, onUpdateItem, onDelete, currentStateId, showPathTracking, onTogglePathTracking }) {
     const [isExpanded, setIsExpanded] = useState(true);
@@ -85,14 +85,6 @@ export function EntityList({ items, selectedIds, onSelect, onUpdateItem, onDelet
                     <ChevronLeft size={20} />
                 </button>
                 <div style={{
-                    background: 'var(--bg-tertiary)',
-                    borderRadius: '6px',
-                    padding: '0.5rem',
-                    color: 'var(--text-secondary)'
-                }}>
-                    <Layers size={20} />
-                </div>
-                <div style={{
                     fontSize: '0.75rem',
                     color: 'var(--text-secondary)',
                     fontWeight: 600,
@@ -128,7 +120,6 @@ export function EntityList({ items, selectedIds, onSelect, onUpdateItem, onDelet
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Layers size={18} color="var(--accent-color)" />
                         <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                             Entities ({visibleItems.length})
                         </h3>
