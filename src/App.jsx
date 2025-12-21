@@ -193,6 +193,44 @@ function App() {
             } : type === 'circle' ? {
                 radius: 50,
                 weight: 10
+            } : type === 'triangle' ? {
+                type: 'custom',
+                w: 100,
+                h: 87,
+                weight: 10,
+                customPath: [
+                    { x: 0, y: -43.5 },
+                    { x: 50, y: 43.5 },
+                    { x: -50, y: 43.5 }
+                ]
+            } : type === 'hexagon' ? {
+                type: 'custom',
+                w: 100,
+                h: 87,
+                weight: 10,
+                customPath: [
+                    { x: 50, y: 0 },
+                    { x: 25, y: 43.5 },
+                    { x: -25, y: 43.5 },
+                    { x: -50, y: 0 },
+                    { x: -25, y: -43.5 },
+                    { x: 25, y: -43.5 }
+                ]
+            } : type === 'star' ? {
+                type: 'custom',
+                w: 100,
+                h: 95,
+                weight: 10,
+                customPath: (() => {
+                    const points = [];
+                    const outerR = 50, innerR = 20;
+                    for (let i = 0; i < 10; i++) {
+                        const angle = (i * 36 - 90) * Math.PI / 180;
+                        const r = i % 2 === 0 ? outerR : innerR;
+                        points.push({ x: r * Math.cos(angle), y: r * Math.sin(angle) });
+                    }
+                    return points;
+                })()
             } : type === 'drone-air' || type === 'drone-ground' ? {
                 type: 'drone',
                 assignedObject: null,

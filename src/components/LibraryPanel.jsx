@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plane, Square, Circle, Pencil, Truck, Eye, Trash2, Edit3, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plane, Square, Circle, Pencil, Truck, Eye, Trash2, Edit3, ChevronDown, ChevronRight, Plus, Triangle, Hexagon, Star } from 'lucide-react';
 
 export function LibraryPanel({
     items = [],
@@ -16,6 +16,8 @@ export function LibraryPanel({
     const [editingId, setEditingId] = useState(null);
     const [editName, setEditName] = useState('');
     const [hoveredId, setHoveredId] = useState(null);
+    const [showDroneMenu, setShowDroneMenu] = useState(false);
+    const [showObjectMenu, setShowObjectMenu] = useState(false);
 
     const handleDragStart = (e, type) => {
         e.dataTransfer.setData('application/react-dnd-type', type);
@@ -85,61 +87,244 @@ export function LibraryPanel({
             height: '100%',
             overflowY: 'auto'
         }}>
-            {/* Library Section */}
-            <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>
-                <h2 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>
+            {/* Library Section - Compact */}
+            <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
+                <h2 style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
                     Library
                 </h2>
 
-                <div style={{ display: 'grid', gap: '0.5rem' }}>
-                    <div draggable onDragStart={(e) => handleDragStart(e, 'drone-air')} style={draggableStyle}>
-                        <div style={{ padding: '0.4rem', background: 'rgba(96, 165, 250, 0.1)', borderRadius: '6px', color: '#60a5fa' }}>
-                            <Plane size={16} />
-                        </div>
-                        <div>
-                            <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>Air Drone</div>
-                            <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Surface coverage</div>
-                        </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    {/* Add Drone - Side Menu */}
+                    <div style={{ position: 'relative' }}>
+                        <button
+                            onClick={() => { setShowDroneMenu(!showDroneMenu); setShowObjectMenu(false); }}
+                            style={{
+                                width: '100%',
+                                padding: '0.5rem 0.75rem',
+                                background: showDroneMenu ? 'var(--accent-color)' : 'var(--bg-tertiary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                color: showDroneMenu ? 'white' : 'var(--text-primary)',
+                                fontSize: '0.8rem',
+                                fontWeight: 500
+                            }}
+                        >
+                            <Plus size={14} style={{ color: showDroneMenu ? 'white' : '#60a5fa' }} />
+                            <span style={{ flex: 1, textAlign: 'left' }}>Add Drone</span>
+                            <ChevronRight size={14} />
+                        </button>
+                        {showDroneMenu && (
+                            <div style={{
+                                position: 'fixed',
+                                left: '280px',
+                                top: 'auto',
+                                marginTop: '-32px',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '6px',
+                                zIndex: 1000,
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                                minWidth: '160px'
+                            }}>
+                                <div
+                                    draggable={true}
+                                    onDragStart={(e) => handleDragStart(e, 'drone-air')}
+                                    onDragEnd={() => setShowDroneMenu(false)}
+                                    style={{
+                                        padding: '0.5rem 0.75rem',
+                                        cursor: 'grab',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        borderBottom: '1px solid var(--border-color)',
+                                        background: 'var(--bg-tertiary)'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-primary)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                                >
+                                    <Plane size={14} style={{ color: '#60a5fa' }} />
+                                    <span style={{ fontSize: '0.75rem' }}>Air Drone</span>
+                                    <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', marginLeft: 'auto' }}>Surface</span>
+                                </div>
+                                <div
+                                    draggable={true}
+                                    onDragStart={(e) => handleDragStart(e, 'drone-ground')}
+                                    onDragEnd={() => setShowDroneMenu(false)}
+                                    style={{
+                                        padding: '0.5rem 0.75rem',
+                                        cursor: 'grab',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        background: 'var(--bg-tertiary)'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-primary)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                                >
+                                    <Truck size={14} style={{ color: '#8b5cf6' }} />
+                                    <span style={{ fontSize: '0.75rem' }}>Ground Drone</span>
+                                    <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', marginLeft: 'auto' }}>Perimeter</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    <div draggable onDragStart={(e) => handleDragStart(e, 'drone-ground')} style={draggableStyle}>
-                        <div style={{ padding: '0.4rem', background: 'rgba(139, 92, 246, 0.1)', borderRadius: '6px', color: '#8b5cf6' }}>
-                            <Truck size={16} />
-                        </div>
-                        <div>
-                            <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>Ground Drone</div>
-                            <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Perimeter surround</div>
-                        </div>
+                    {/* Add Object - Side Menu */}
+                    <div style={{ position: 'relative' }}>
+                        <button
+                            onClick={() => { setShowObjectMenu(!showObjectMenu); setShowDroneMenu(false); }}
+                            style={{
+                                width: '100%',
+                                padding: '0.5rem 0.75rem',
+                                background: showObjectMenu ? 'var(--accent-color)' : 'var(--bg-tertiary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                color: showObjectMenu ? 'white' : 'var(--text-primary)',
+                                fontSize: '0.8rem',
+                                fontWeight: 500
+                            }}
+                        >
+                            <Plus size={14} style={{ color: showObjectMenu ? 'white' : '#f472b6' }} />
+                            <span style={{ flex: 1, textAlign: 'left' }}>Add Object</span>
+                            <ChevronRight size={14} />
+                        </button>
+                        {showObjectMenu && (
+                            <div style={{
+                                position: 'fixed',
+                                left: '280px',
+                                top: 'auto',
+                                marginTop: '-32px',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '6px',
+                                zIndex: 1000,
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                                minWidth: '140px'
+                            }}>
+                                <div
+                                    draggable={true}
+                                    onDragStart={(e) => handleDragStart(e, 'rectangle')}
+                                    onDragEnd={() => setShowObjectMenu(false)}
+                                    style={{
+                                        padding: '0.5rem 0.75rem',
+                                        cursor: 'grab',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        borderBottom: '1px solid var(--border-color)',
+                                        background: 'var(--bg-tertiary)'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-primary)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                                >
+                                    <Square size={14} style={{ color: '#f472b6' }} />
+                                    <span style={{ fontSize: '0.75rem' }}>Rectangle</span>
+                                </div>
+                                <div
+                                    draggable={true}
+                                    onDragStart={(e) => handleDragStart(e, 'circle')}
+                                    onDragEnd={() => setShowObjectMenu(false)}
+                                    style={{
+                                        padding: '0.5rem 0.75rem',
+                                        cursor: 'grab',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        borderBottom: '1px solid var(--border-color)',
+                                        background: 'var(--bg-tertiary)'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-primary)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                                >
+                                    <Circle size={14} style={{ color: '#f472b6' }} />
+                                    <span style={{ fontSize: '0.75rem' }}>Circle</span>
+                                </div>
+                                <div
+                                    draggable={true}
+                                    onDragStart={(e) => handleDragStart(e, 'triangle')}
+                                    onDragEnd={() => setShowObjectMenu(false)}
+                                    style={{
+                                        padding: '0.5rem 0.75rem',
+                                        cursor: 'grab',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        borderBottom: '1px solid var(--border-color)',
+                                        background: 'var(--bg-tertiary)'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-primary)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                                >
+                                    <Triangle size={14} style={{ color: '#f472b6' }} />
+                                    <span style={{ fontSize: '0.75rem' }}>Triangle</span>
+                                </div>
+                                <div
+                                    draggable={true}
+                                    onDragStart={(e) => handleDragStart(e, 'hexagon')}
+                                    onDragEnd={() => setShowObjectMenu(false)}
+                                    style={{
+                                        padding: '0.5rem 0.75rem',
+                                        cursor: 'grab',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        borderBottom: '1px solid var(--border-color)',
+                                        background: 'var(--bg-tertiary)'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-primary)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                                >
+                                    <Hexagon size={14} style={{ color: '#f472b6' }} />
+                                    <span style={{ fontSize: '0.75rem' }}>Hexagon</span>
+                                </div>
+                                <div
+                                    draggable={true}
+                                    onDragStart={(e) => handleDragStart(e, 'star')}
+                                    onDragEnd={() => setShowObjectMenu(false)}
+                                    style={{
+                                        padding: '0.5rem 0.75rem',
+                                        cursor: 'grab',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        background: 'var(--bg-tertiary)'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-primary)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                                >
+                                    <Star size={14} style={{ color: '#f472b6' }} />
+                                    <span style={{ fontSize: '0.75rem' }}>Star</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    <div draggable onDragStart={(e) => handleDragStart(e, 'rectangle')} style={draggableStyle}>
-                        <div style={{ padding: '0.4rem', background: 'rgba(236, 72, 153, 0.1)', borderRadius: '6px', color: '#f472b6' }}>
-                            <Square size={16} />
-                        </div>
-                        <div>
-                            <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>Rectangle</div>
-                            <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Rectangular object</div>
-                        </div>
-                    </div>
-
-                    <div draggable onDragStart={(e) => handleDragStart(e, 'circle')} style={draggableStyle}>
-                        <div style={{ padding: '0.4rem', background: 'rgba(236, 72, 153, 0.1)', borderRadius: '6px', color: '#f472b6' }}>
-                            <Circle size={16} />
-                        </div>
-                        <div>
-                            <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>Circle</div>
-                            <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Circular object</div>
-                        </div>
-                    </div>
-
-                    <div draggable onDragStart={(e) => handleDragStart(e, 'custom')} style={draggableStyle}>
-                        <div style={{ padding: '0.4rem', background: 'rgba(34, 197, 94, 0.1)', borderRadius: '6px', color: '#4ade80' }}>
-                            <Pencil size={16} />
-                        </div>
-                        <div>
-                            <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>Custom Object</div>
-                            <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Draw your shape</div>
-                        </div>
+                    {/* Custom Object - Always visible */}
+                    <div
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, 'custom')}
+                        style={{
+                            padding: '0.5rem 0.75rem',
+                            background: 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            cursor: 'grab',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                        }}
+                    >
+                        <Pencil size={14} style={{ color: '#4ade80' }} />
+                        <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>Custom Object</span>
+                        <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', marginLeft: 'auto' }}>Draw</span>
                     </div>
                 </div>
             </div>
