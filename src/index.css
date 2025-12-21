@@ -21,6 +21,7 @@
 
     --glass-bg: rgba(24, 24, 27, 0.7);
     --glass-border: rgba(255, 255, 255, 0.1);
+    --grid-color: rgba(255, 255, 255, 0.15);
 
     color-scheme: dark;
     color: var(--text-primary);
@@ -43,6 +44,7 @@
 
     --glass-bg: rgba(255, 255, 255, 0.7);
     --glass-border: rgba(0, 0, 0, 0.1);
+    --grid-color: rgba(0, 0, 0, 0.12);
 
     color-scheme: light;
     color: var(--text-primary);

@@ -505,7 +505,7 @@ export function Playground({
                     height: '100%',
                     transform: `translate(${viewport.offsetX}px, ${viewport.offsetY}px) scale(${viewport.zoom})`,
                     transformOrigin: '0 0',
-                    backgroundImage: settings.showGrid !== false ? 'radial-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px)' : 'none',
+                    backgroundImage: settings.showGrid !== false ? 'radial-gradient(var(--grid-color, rgba(255, 255, 255, 0.15)) 1px, transparent 1px)' : 'none',
                     backgroundSize: `${settings.gridSize || 20}px ${settings.gridSize || 20}px`,
                     backgroundPosition: '0 0'
                 }}
