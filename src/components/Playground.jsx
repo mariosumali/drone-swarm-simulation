@@ -525,6 +525,43 @@ export function Playground({
         setRotatingItem(null);
     };
 
+    // Right-click context menu handler
+    const handleContextMenu = (e) => {
+        e.preventDefault();
+        if (drawingMode || pathDrawingMode) return;
+
+        const world = screenToWorld(e.clientX, e.clientY);
+        setContextMenu({
+            screenX: e.clientX,
+            screenY: e.clientY,
+            worldX: world.x,
+            worldY: world.y
+        });
+    };
+
+    // Add item from context menu
+    const addItemFromContextMenu = (type) => {
+        if (!contextMenu) return;
+        onAddItem(type, contextMenu.worldX, contextMenu.worldY);
+        setContextMenu(null);
+    };
+
+    // Close context menu on click elsewhere
+    React.useEffect(() => {
+        const handleClick = () => setContextMenu(null);
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') setContextMenu(null);
+        };
+        if (contextMenu) {
+            window.addEventListener('click', handleClick);
+            window.addEventListener('keydown', handleEscape);
+        }
+        return () => {
+            window.removeEventListener('click', handleClick);
+            window.removeEventListener('keydown', handleEscape);
+        };
+    }, [contextMenu]);
+
     React.useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.code === 'Space' && !drawingMode) {
@@ -563,6 +600,7 @@ export function Playground({
             onMouseDown={handleBackgroundMouseDown}
             onDoubleClick={handleDoubleClick}
             onWheel={handleWheel}
+            onContextMenu={handleContextMenu}
             className="w-full h-full relative bg-gray-900 border border-gray-700 rounded-lg overflow-hidden select-none"
             tabIndex={0}
             style={{ outline: 'none' }}
@@ -1254,6 +1292,131 @@ export function Playground({
                 }
 
             </div>
+
+            {/* Right-click Context Menu */}
+            {contextMenu && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        left: contextMenu.screenX,
+                        top: contextMenu.screenY,
+                        background: 'rgba(15, 23, 42, 0.95)',
+                        border: '1px solid rgba(148, 163, 184, 0.3)',
+                        borderRadius: '8px',
+                        padding: '8px 0',
+                        minWidth: '160px',
+                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
+                        zIndex: 1000
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div style={{ padding: '4px 12px', fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Add at ({Math.round(contextMenu.worldX)}, {Math.round(contextMenu.worldY)})
+                    </div>
+                    <div style={{ height: '1px', background: 'rgba(148, 163, 184, 0.2)', margin: '4px 0' }} />
+
+                    {/* Drones */}
+                    <button
+                        onClick={() => addItemFromContextMenu('drone-air')}
+                        style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#e2e8f0',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontSize: '0.85rem'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        ✈️ Air Drone
+                    </button>
+                    <button
+                        onClick={() => addItemFromContextMenu('drone-ground')}
+                        style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#e2e8f0',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontSize: '0.85rem'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(139, 92, 246, 0.2)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        🚛 Ground Drone
+                    </button>
+
+                    <div style={{ height: '1px', background: 'rgba(148, 163, 184, 0.2)', margin: '4px 0' }} />
+
+                    {/* Objects */}
+                    <button
+                        onClick={() => addItemFromContextMenu('rectangle')}
+                        style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#e2e8f0',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontSize: '0.85rem'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(244, 114, 182, 0.2)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        ⬜ Rectangle
+                    </button>
+                    <button
+                        onClick={() => addItemFromContextMenu('circle')}
+                        style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#e2e8f0',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontSize: '0.85rem'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(244, 114, 182, 0.2)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        ⚪ Circle
+                    </button>
+                    <button
+                        onClick={() => addItemFromContextMenu('triangle')}
+                        style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#e2e8f0',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontSize: '0.85rem'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(244, 114, 182, 0.2)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        🔺 Triangle
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

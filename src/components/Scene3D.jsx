@@ -17,7 +17,8 @@ export function CameraControls({ enabled = true }) {
     );
 }
 
-export function Scene3D({ children, cameraPosition = [0, 200, 300], controlsEnabled = true, gridSize = 20 }) {
+// Camera looking straight down from above - zoomed out for full view
+export function Scene3D({ children, cameraPosition = [0, 1200, 0.1], controlsEnabled = true, gridSize = 20 }) {
     return (
         <Canvas
             camera={{

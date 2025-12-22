@@ -48,7 +48,8 @@ function SceneContent({
     const getItemPosition = useCallback((item) => {
         if (!isSimulating || !item.statePositions) {
             const pos = item.statePositions?.[currentStateId] || { x: 0, y: 0, z: 0 };
-            return [pos.x, pos.z || 0, -pos.y]; // Convert to Three.js coordinates (Y-up)
+            // 2D X -> 3D X, 2D Z (altitude) -> 3D Y (up), 2D Y -> 3D Z (forward/down when viewed from above)
+            return [pos.x, pos.z || 0, pos.y];
         }
 
         const currentStateIndex = states.findIndex(s => s.id === currentStateId);
@@ -58,7 +59,7 @@ function SceneContent({
 
         if (!currentPos || !nextPos) {
             const pos = currentPos || nextPos || { x: 0, y: 0, z: 0 };
-            return [pos.x, pos.z || 0, -pos.y];
+            return [pos.x, pos.z || 0, pos.y];
         }
 
         const easing = EASING_FUNCTIONS[settings.easing] || EASING_FUNCTIONS.linear;
@@ -67,7 +68,7 @@ function SceneContent({
         return [
             interpolate(currentPos.x, nextPos.x, t),
             interpolate(currentPos.z || 0, nextPos.z || 0, t),
-            -interpolate(currentPos.y, nextPos.y, t)
+            interpolate(currentPos.y, nextPos.y, t)
         ];
     }, [isSimulating, currentStateId, states, animationProgress, settings.easing]);
 
@@ -124,7 +125,7 @@ function SceneContent({
 
         if (intersection) {
             let newX = intersection.x + dragOffset.current.x;
-            let newY = -(intersection.z + dragOffset.current.z);
+            let newY = intersection.z + dragOffset.current.z; // 3D Z -> 2D Y (no negation now)
 
             // Apply snap to grid if enabled
             if (settings.snapToGrid && settings.gridSize) {
@@ -165,7 +166,7 @@ function SceneContent({
             screenX: e.clientX || (gl.domElement.offsetLeft + gl.domElement.width / 2),
             screenY: e.clientY || (gl.domElement.offsetTop + gl.domElement.height / 2),
             worldX: intersection.x,
-            worldY: -intersection.z // Convert back to 2D Y
+            worldY: intersection.z // 3D Z -> 2D Y (no negation)
         });
     }, [isSimulating, camera, raycaster, pointer, gl.domElement]);
 
@@ -214,7 +215,7 @@ function SceneContent({
                 activeStates.forEach(state => {
                     const pos = item.statePositions?.[state.id];
                     if (pos) {
-                        points.push(new THREE.Vector3(pos.x, pos.z || 0, -pos.y));
+                        points.push(new THREE.Vector3(pos.x, pos.z || 0, pos.y)); // 2D Y -> 3D Z
                     }
                 });
 
@@ -292,7 +293,7 @@ function SceneContent({
             {/* Context Menu as Html overlay */}
             {contextMenu && (
                 <Html
-                    position={[contextMenu.worldX, 5, -contextMenu.worldY]}
+                    position={[contextMenu.worldX, 5, contextMenu.worldY]}
                     center
                     style={{ pointerEvents: 'auto' }}
                 >
