@@ -7,6 +7,7 @@ export function Object3D({
     position = [0, 0, 0],
     rotation = [0, 0, 0],
     scale = 1,
+    currentStateId,
     selected = false,
     onClick,
     onPointerDown,
@@ -16,34 +17,52 @@ export function Object3D({
 
     const { type, w = 100, h = 100, radius = 50, height = 20, customPath, isObstacle } = data;
 
-    // Get scale from data if available
-    const objectScale = data.statePositions?.[Object.keys(data.statePositions || {})[0]]?.scale || scale;
+    // Get scale from current state if available, fallback to first state or prop
+    const objectScale = currentStateId
+        ? (data.statePositions?.[currentStateId]?.scale || scale)
+        : (data.statePositions?.[Object.keys(data.statePositions || {})[0]]?.scale || scale);
 
     // Colors
     const baseColor = isObstacle ? '#ef4444' : '#10b981';
     const emissiveColor = selected ? '#ffffff' : (hovered ? baseColor : '#000000');
     const emissiveIntensity = selected ? 0.2 : (hovered ? 0.1 : 0);
 
-    // Custom shape geometry - center around origin
+    // Custom shape geometry - center around origin and apply w/h scaling
     const customShape = useMemo(() => {
         if (type === 'custom' && customPath && customPath.length > 2) {
-            // Calculate centroid to center the shape at origin
+            // Calculate original bounding box
             const xs = customPath.map(p => p.x);
             const ys = customPath.map(p => p.y);
-            const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
-            const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+            const minX = Math.min(...xs);
+            const maxX = Math.max(...xs);
+            const minY = Math.min(...ys);
+            const maxY = Math.max(...ys);
+            const origW = maxX - minX || 1;
+            const origH = maxY - minY || 1;
+            const centerX = (minX + maxX) / 2;
+            const centerY = (minY + maxY) / 2;
+
+            // Calculate scale factors (same as 2D SimulationObject)
+            const currentW = w || origW;
+            const currentH = h || origH;
+            const scaleX = currentW / origW;
+            const scaleY = currentH / origH;
 
             const shape = new THREE.Shape();
-            // Center the shape by subtracting the centroid
-            shape.moveTo(customPath[0].x - centerX, -(customPath[0].y - centerY));
+            // Center and scale the shape
+            const scaledX0 = (customPath[0].x - centerX) * scaleX;
+            const scaledY0 = -(customPath[0].y - centerY) * scaleY;
+            shape.moveTo(scaledX0, scaledY0);
             for (let i = 1; i < customPath.length; i++) {
-                shape.lineTo(customPath[i].x - centerX, -(customPath[i].y - centerY));
+                const scaledX = (customPath[i].x - centerX) * scaleX;
+                const scaledY = -(customPath[i].y - centerY) * scaleY;
+                shape.lineTo(scaledX, scaledY);
             }
             shape.closePath();
             return shape;
         }
         return null;
-    }, [type, customPath]);
+    }, [type, customPath, w, h]);
 
     const renderShape = () => {
         switch (type) {
