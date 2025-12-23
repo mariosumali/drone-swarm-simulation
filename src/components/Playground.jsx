@@ -15,7 +15,11 @@ export function Playground({
     scrollZoomEnabled = true, // Default to true if not passed
     containerRef, // For recording/region capture
     show3DMode = false,
-    settings = {}
+    settings = {},
+    physicsMode = false,
+    physicsState = { drones: {}, objects: {} },
+    showHitboxes = false,
+    hitboxes = []
 }) {
 
     const playgroundRef = useRef(null);
@@ -640,6 +644,56 @@ export function Playground({
                     width: 0,
                     height: 0
                 }}>
+                    {/* Hitbox Visualization */}
+                    {showHitboxes && hitboxes.length > 0 && (
+                        <svg style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: 1,
+                            height: 1,
+                            pointerEvents: 'none',
+                            overflow: 'visible',
+                            zIndex: 50
+                        }}>
+                            {hitboxes.map(hb => {
+                                const color = hb.entityType === 'drone' ? '#ef4444' : '#3b82f6';
+                                if (hb.type === 'circle') {
+                                    return (
+                                        <circle
+                                            key={hb.id}
+                                            cx={hb.x}
+                                            cy={hb.y}
+                                            r={hb.radius}
+                                            fill="none"
+                                            stroke={color}
+                                            strokeWidth={2}
+                                            strokeDasharray="4 2"
+                                            opacity={0.8}
+                                        />
+                                    );
+                                } else {
+                                    // Rectangle hitbox
+                                    return (
+                                        <rect
+                                            key={hb.id}
+                                            x={hb.x - hb.width / 2}
+                                            y={hb.y - hb.height / 2}
+                                            width={hb.width}
+                                            height={hb.height}
+                                            fill="none"
+                                            stroke={color}
+                                            strokeWidth={2}
+                                            strokeDasharray="4 2"
+                                            opacity={0.8}
+                                            transform={`rotate(${hb.rotation || 0} ${hb.x} ${hb.y})`}
+                                        />
+                                    );
+                                }
+                            })}
+                        </svg>
+                    )}
+
                     {/* Force Vectors Visualization */}
                     {showForceVectors && (
                         <svg style={{

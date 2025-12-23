@@ -10,7 +10,7 @@ import { EntityList } from './components/EntityList';
 import { ZoomControls } from './components/ZoomControls';
 import { TelemetryDashboard } from './components/TelemetryDashboard';
 import { generateAutoPath } from './utils/pathfinding';
-import { useAgentSimulation } from './agents';
+import { usePhysicsSimulation } from './agents';
 
 
 function App() {
@@ -40,7 +40,7 @@ function App() {
     const [showDronePaths, setShowDronePaths] = useState(true);
     const [showForceVectors, setShowForceVectors] = useState(false);
     const [showTelemetry, setShowTelemetry] = useState(false);
-    const [agentMode, setAgentMode] = useState(false); // Decentralized agent control mode
+    const [physicsMode, setPhysicsMode] = useState(false); // Physics-based push/pull mode
     const [show3DMode, setShow3DMode] = useState(false); // 2D mode by default
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
     const [clipboard, setClipboard] = useState([]);
@@ -145,26 +145,28 @@ function App() {
         }
     }, [viewport.needsCenter]);
 
-    // Agent simulation hook for decentralized control
+    // Physics simulation hook for push/pull mechanics
     const {
-        agentStates,
-        isRunning: agentRunning,
-        collisions,
-        startAgentMode,
-        stopAgentMode,
-        setGoalsFromNextState,
-        updateAgentConfig
-    } = useAgentSimulation(items, states, currentStateId, settings);
+        physicsState,
+        isRunning: physicsRunning,
+        showHitboxes,
+        hitboxes,
+        startPhysics,
+        stopPhysics,
+        togglePhysics,
+        setDroneTargetsFromNextState,
+        toggleHitboxes
+    } = usePhysicsSimulation(items, states, currentStateId, settings);
 
-    // Toggle agent mode
-    const toggleAgentMode = () => {
-        if (agentMode) {
-            stopAgentMode();
-            setAgentMode(false);
+    // Toggle physics mode
+    const togglePhysicsMode = () => {
+        if (physicsMode) {
+            stopPhysics();
+            setPhysicsMode(false);
         } else {
-            setGoalsFromNextState();
-            startAgentMode();
-            setAgentMode(true);
+            setDroneTargetsFromNextState();
+            startPhysics();
+            setPhysicsMode(true);
         }
     };
 
@@ -1732,15 +1734,15 @@ function App() {
                         {show3DMode ? '🎮 3D' : '📐 2D'}
                     </button>
 
-                    {/* Agent Mode Toggle */}
+                    {/* Physics Mode Toggle */}
                     <button
-                        onClick={toggleAgentMode}
+                        onClick={togglePhysicsMode}
                         style={{
                             padding: '0.5rem 0.75rem',
-                            background: agentMode ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--bg-tertiary)',
+                            background: physicsMode ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'var(--bg-tertiary)',
                             border: '1px solid var(--border-color)',
                             borderRadius: '8px',
-                            color: agentMode ? 'white' : 'var(--text-primary)',
+                            color: physicsMode ? 'white' : 'var(--text-primary)',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
@@ -1749,9 +1751,31 @@ function App() {
                             fontSize: '12px',
                             transition: 'all 0.2s'
                         }}
-                        title={agentMode ? 'Stop Autonomous Mode' : 'Start Autonomous Agent Mode (Real-time Physics)'}
+                        title={physicsMode ? 'Stop Physics Mode' : 'Start Physics Mode (Drones Push/Pull Objects)'}
                     >
-                        {agentMode ? '⏹️ Stop' : '🤖 Agent'}
+                        {physicsMode ? '⏹️ Stop' : '⚙️ Physics'}
+                    </button>
+
+                    {/* Show Hitboxes Toggle */}
+                    <button
+                        onClick={toggleHitboxes}
+                        style={{
+                            padding: '0.5rem 0.75rem',
+                            background: showHitboxes ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '8px',
+                            color: showHitboxes ? 'white' : 'var(--text-primary)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontWeight: 600,
+                            fontSize: '12px',
+                            transition: 'all 0.2s'
+                        }}
+                        title={showHitboxes ? 'Hide Hitboxes' : 'Show Hitboxes'}
+                    >
+                        {showHitboxes ? '🔲 Hide' : '🔲 Hitbox'}
                     </button>
                     <button
                         onClick={handleToggleRecord}
@@ -1912,6 +1936,10 @@ function App() {
                                     setSelectedIds(new Set());
                                 }}
                                 scrollZoomEnabled={scrollZoomEnabled}
+                                physicsMode={physicsMode}
+                                physicsState={physicsState}
+                                showHitboxes={showHitboxes}
+                                hitboxes={hitboxes}
                             />
                         )}
 

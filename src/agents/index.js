@@ -1,4 +1,3 @@
-// Agent system exports
-export { DroneAgent } from './DroneAgent';
-export { AgentManager } from './AgentManager';
-export { useAgentSimulation } from './useAgentSimulation';
+// Agent/Physics system exports
+export { PhysicsWorld } from './PhysicsWorld';
+export { usePhysicsSimulation } from './usePhysicsSimulation';
