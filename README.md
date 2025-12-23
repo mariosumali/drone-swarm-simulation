@@ -131,4 +131,4 @@ src/
 MIT License
 
 ---
-**Mario Sumali** | 2024
+**Mario Sumali** | 2025
