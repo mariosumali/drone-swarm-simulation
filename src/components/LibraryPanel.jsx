@@ -13,7 +13,8 @@ export function LibraryPanel({
     showDronePaths,
     onToggleDronePaths,
     showForceVectors,
-    onToggleForceVectors
+    onToggleForceVectors,
+    show3DMode
 }) {
     const [editingId, setEditingId] = useState(null);
     const [editName, setEditName] = useState('');
@@ -22,6 +23,10 @@ export function LibraryPanel({
     const [showObjectMenu, setShowObjectMenu] = useState(false);
 
     const handleDragStart = (e, type) => {
+        if (show3DMode) {
+            e.preventDefault();
+            return;
+        }
         e.dataTransfer.setData('application/react-dnd-type', type);
         e.dataTransfer.effectAllowed = 'copy';
     };
@@ -31,11 +36,12 @@ export function LibraryPanel({
         background: 'var(--bg-tertiary)',
         border: '1px solid var(--border-color)',
         borderRadius: '8px',
-        cursor: 'grab',
+        cursor: show3DMode ? 'not-allowed' : 'grab',
         display: 'flex',
         alignItems: 'center',
         gap: '0.75rem',
-        transition: 'all 0.2s'
+        transition: 'all 0.2s',
+        opacity: show3DMode ? 0.5 : 1
     };
 
     const getEntityIcon = (type) => {
@@ -92,12 +98,19 @@ export function LibraryPanel({
             zIndex: 10
         }}>
             {/* Library Section - Compact */}
-            <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
+            <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)', position: 'relative' }}>
                 <h2 style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
                     Library
                 </h2>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.25rem',
+                    opacity: show3DMode ? 0.3 : 1,
+                    pointerEvents: show3DMode ? 'none' : 'auto',
+                    filter: show3DMode ? 'grayscale(100%)' : 'none'
+                }}>
                     {/* Add Drone - Side Menu */}
                     <div style={{ position: 'relative' }}>
                         <button
@@ -311,26 +324,60 @@ export function LibraryPanel({
                         )}
                     </div>
 
-                    {/* Custom Object - Always visible */}
-                    <div
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, 'custom')}
-                        style={{
-                            padding: '0.5rem 0.75rem',
-                            background: 'var(--bg-tertiary)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '6px',
-                            cursor: 'grab',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem'
-                        }}
-                    >
+                    <button style={{
+                        width: '100%',
+                        padding: '0.5rem 0.75rem',
+                        background: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.8rem',
+                        fontWeight: 500
+                    }}>
                         <Pencil size={14} style={{ color: '#4ade80' }} />
-                        <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>Custom Object</span>
-                        <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', marginLeft: 'auto' }}>Draw</span>
-                    </div>
+                        <span style={{ flex: 1, textAlign: 'left' }}>Custom Object</span>
+                        <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>Draw</span>
+                    </button>
                 </div>
+
+                {show3DMode && (
+                    <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(0,0,0,0.2)',
+                        backdropFilter: 'blur(2px)',
+                        zIndex: 10,
+                        borderRadius: '8px',
+                        padding: '1rem',
+                        textAlign: 'center'
+                    }}>
+                        <div style={{
+                            background: 'var(--bg-secondary)',
+                            padding: '0.5rem 1rem',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border-color)',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                            fontSize: '0.75rem',
+                            color: 'var(--text-secondary)'
+                        }}>
+                            <div style={{ fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.25rem' }}>
+                                Under Construction
+                            </div>
+                            <div>Right-click in 3D scene<br />to add objects</div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Entities Section - Same style as original EntityList */}

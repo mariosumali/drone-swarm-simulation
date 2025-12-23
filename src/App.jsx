@@ -1788,6 +1788,7 @@ function App() {
                     onToggleDronePaths={() => setShowDronePaths(!showDronePaths)}
                     showForceVectors={showForceVectors}
                     onToggleForceVectors={() => setShowForceVectors(!showForceVectors)}
+                    show3DMode={show3DMode}
                 />
 
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
