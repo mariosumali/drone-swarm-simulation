@@ -31,33 +31,33 @@ export function Scene3D({ children, cameraPosition = [0, 1200, 0.1], controlsEna
             style={{ background: '#0f172a' }}
         >
             {/* Lighting */}
-            <ambientLight intensity={0.4} />
+            <ambientLight intensity={0.5} />
             <directionalLight
-                position={[100, 200, 100]}
+                position={[500, 1000, 500]}
                 intensity={1}
                 castShadow
-                shadow-mapSize={[2048, 2048]}
-                shadow-camera-far={1000}
-                shadow-camera-left={-500}
-                shadow-camera-right={500}
-                shadow-camera-top={500}
-                shadow-camera-bottom={-500}
+                shadow-mapSize={[4096, 4096]}
+                shadow-camera-far={10000}
+                shadow-camera-left={-5000}
+                shadow-camera-right={5000}
+                shadow-camera-top={5000}
+                shadow-camera-bottom={-5000}
             />
-            <pointLight position={[-100, 100, -100]} intensity={0.3} />
+            <pointLight position={[-500, 500, -500]} intensity={0.3} />
 
             {/* Sky */}
-            <Sky sunPosition={[100, 200, 100]} />
+            <Sky sunPosition={[500, 1000, 500]} />
 
             {/* Ground Grid */}
             <Grid
-                args={[1000, 1000]}
+                args={[5000, 5000]}
                 cellSize={gridSize}
                 cellThickness={0.5}
                 cellColor="#334155"
                 sectionSize={gridSize * 5}
                 sectionThickness={1}
                 sectionColor="#475569"
-                fadeDistance={1500}
+                fadeDistance={5000}
                 fadeStrength={1}
                 followCamera={false}
                 infiniteGrid
@@ -66,7 +66,7 @@ export function Scene3D({ children, cameraPosition = [0, 1200, 0.1], controlsEna
 
             {/* Ground Plane (for shadows and raycasting) */}
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]} receiveShadow>
-                <planeGeometry args={[2000, 2000]} />
+                <planeGeometry args={[10000, 10000]} />
                 <meshStandardMaterial color="#1e293b" transparent opacity={0.8} />
             </mesh>
 

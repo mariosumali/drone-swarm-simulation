@@ -1039,15 +1039,21 @@ function App() {
             ...prev.slice(currentIndex + 1)
         ]);
 
-        // Get obstacles for pathfinding (only objects marked as obstacles)
+        // Get obstacles for pathfinding (include the object itself so drones go around it)
         const obstacles = items.filter(i =>
             i.type !== 'drone' &&
-            i.id !== objectId &&
             i.isObstacle === true
         ).map(obs => ({
             ...obs,
             _checkStateId: currentStateId
         }));
+
+        // Add the object itself as an obstacle for ground drones to path around
+        const objectAsObstacle = {
+            ...object,
+            _checkStateId: currentStateId
+        };
+        const obstaclesWithObject = [...obstacles, objectAsObstacle];
 
         // Update ALL items with new state positions (copy entire state)
         setItems(prev => prev.map(item => {
@@ -1075,7 +1081,7 @@ function App() {
                     y: objectPos.y + formationOffsets[droneIndex].y
                 };
 
-                const autoPath = findPath(droneCurrentPos, targetPos, obstacles, currentStateId);
+                const autoPath = findPath(droneCurrentPos, targetPos, obstaclesWithObject, currentStateId);
 
                 const newStatePositions = { ...item.statePositions };
                 newStatePositions[newStateId] = {
