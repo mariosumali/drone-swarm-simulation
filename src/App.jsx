@@ -39,7 +39,7 @@ function App() {
     const [showDronePaths, setShowDronePaths] = useState(true);
     const [showForceVectors, setShowForceVectors] = useState(false);
     const [showTelemetry, setShowTelemetry] = useState(false);
-    const [show3DMode, setShow3DMode] = useState(true); // 3D mode by default
+    const [show3DMode, setShow3DMode] = useState(false); // 2D mode by default
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
     const [clipboard, setClipboard] = useState([]);
     const [theme, setTheme] = useState(() => {
