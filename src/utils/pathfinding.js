@@ -411,6 +411,11 @@ function isPointBlocked3D(point, obstacle, margin = 10) {
     const obstacleHeight = obstacle.height || 20;
     const obstacleTop = obstacleZ + obstacleHeight;
 
+    // No-Fly Zone: blocks entire airspace above - cannot fly over at any altitude
+    if (obstacle.noFlyZone) {
+        return isPointInObstacle({ x: point.x, y: point.y }, obstacle, margin);
+    }
+
     // If drone is above obstacle top + margin, it's clear
     if ((point.z || 0) > obstacleTop + margin) {
         return false;

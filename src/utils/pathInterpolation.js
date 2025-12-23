@@ -1,7 +1,7 @@
 // Path interpolation utilities for custom paths between states
 
 /**
- * Calculate the total length of a path
+ * Calculate the total length of a path (supports 2D and 3D)
  */
 export function calculatePathLength(points) {
     if (!points || points.length < 2) return 0;
@@ -10,31 +10,34 @@ export function calculatePathLength(points) {
     for (let i = 0; i < points.length - 1; i++) {
         const dx = points[i + 1].x - points[i].x;
         const dy = points[i + 1].y - points[i].y;
-        totalLength += Math.sqrt(dx * dx + dy * dy);
+        const dz = (points[i + 1].z || 0) - (points[i].z || 0);
+        totalLength += Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
     return totalLength;
 }
 
 /**
- * Get a point at a specific distance along the path
+ * Get a point at a specific distance along the path (supports 2D and 3D)
  */
 export function getPointAtDistance(points, targetDistance) {
-    if (!points || points.length === 0) return { x: 0, y: 0 };
-    if (points.length === 1) return { ...points[0] };
+    if (!points || points.length === 0) return { x: 0, y: 0, z: 0 };
+    if (points.length === 1) return { x: points[0].x, y: points[0].y, z: points[0].z || 0 };
 
     let currentDistance = 0;
 
     for (let i = 0; i < points.length - 1; i++) {
         const dx = points[i + 1].x - points[i].x;
         const dy = points[i + 1].y - points[i].y;
-        const segmentLength = Math.sqrt(dx * dx + dy * dy);
+        const dz = (points[i + 1].z || 0) - (points[i].z || 0);
+        const segmentLength = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
         if (currentDistance + segmentLength >= targetDistance) {
             // Point is on this segment
-            const t = (targetDistance - currentDistance) / segmentLength;
+            const t = segmentLength > 0 ? (targetDistance - currentDistance) / segmentLength : 0;
             return {
                 x: points[i].x + dx * t,
-                y: points[i].y + dy * t
+                y: points[i].y + dy * t,
+                z: (points[i].z || 0) + dz * t
             };
         }
 
@@ -42,7 +45,8 @@ export function getPointAtDistance(points, targetDistance) {
     }
 
     // Return last point if we've gone past the end
-    return { ...points[points.length - 1] };
+    const last = points[points.length - 1];
+    return { x: last.x, y: last.y, z: last.z || 0 };
 }
 
 /**

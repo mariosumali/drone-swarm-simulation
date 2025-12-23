@@ -340,7 +340,7 @@ export function calculateAirFormationCCVT(object, droneCount, opts = {}) {
         seed = 12345,
         samplesPerDrone = 150, // Increased for better resolution
         iters = 100,           // Increased for better convergence to symmetric centroidal Voronoi
-        hoverAltitude = 50,    // Height above object top where drones hover
+        hoverAltitude = 5,     // Small offset above object surface - drones "land" on top
     } = opts;
 
     if (droneCount <= 0) return [];
