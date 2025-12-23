@@ -1,191 +1,134 @@
 # Drone Swarm Simulation
 
-A multi-state drone swarm simulation system for planning and visualizing coordinated drone operations, including object transport with formation control and custom path planning.
+A multi-state drone swarm simulator for coordinated drone operations with formation control, 3D pathfinding, and obstacle avoidance.
 
 **Created by Mario Sumali**
 
 ## Features
 
-### Core Simulation
-- **Multi-State Management**: Create unlimited simulation states with smooth interpolation between them
-- **Real-time Playback**: Animate between states with adjustable playback speed
-- **Interactive Canvas**: Drag, drop, resize, and rotate objects with visual feedback
-
-### Object Types
-- **Rectangles**: Customizable dimensions and properties
-- **Circles**: Adjustable radius
-- **Custom Shapes**: Free-draw custom polygons
-- **Obstacles**: Mark objects as static obstacles (cannot be transported)
-- **Position Locking**: Lock objects to prevent accidental movement
+### Simulation Engine
+- **Multi-State Management** - Create unlimited states with smooth interpolation
+- **Real-time Playback** - Animate transitions with adjustable speed and easing
+- **2D & 3D Views** - Interactive canvas with synchronized dual-view rendering
 
 ### Drone System
-- **Two Drone Types**:
-  - 🚗 **Ground Drones**: Form perimeter formations around objects
-  - ✈️ **Air Drones**: Cover surface area above objects
-- **Formation Generation**: Automatic positioning based on object geometry
-- **Formation Locking**: Lock drones to maintain relative positions during movement/rotation
-- **Visual Indicators**: Distinct appearances for drone types and formation status
+- **Ground Drones** - Perimeter formations around object boundaries
+- **Air Drones** - Surface coverage using Voronoi-based placement
+- **Formation Locking** - Drones maintain relative positions during object movement
+- **Visual Indicators** - Altitude badges, flying glow effects, formation status
 
-### Advanced Features
-- **Auto Pathfinding**: Generate obstacle-avoiding paths using A* algorithm
-- **Custom Transition Paths**: Draw curved paths for objects to follow between states
-  - Drag-to-draw interface
-  - Snap-to-endpoints with visual guides
-  - Catmull-Rom spline smoothing
-- **Path Tracking**: Visualize object movement paths with color-coded dotted lines
-- **Entity Management**: Hierarchical entity list with collapsible drone groups
-- **Undo/Redo**: Full history support for all actions
-- **Save/Load**: Export and import simulations as JSON files
-- **Settings Panel**: Configurable grid, snap-to-grid, pan/zoom sensitivity
-- **Light/Dark Mode**: Theme switching with persistent preferences
+### Pathfinding
+- **2D A\* Algorithm** - Grid-based obstacle avoidance for ground navigation
+- **3D A\* Algorithm** - Volumetric pathfinding with rise-fly-descend patterns
+- **No-Fly Zones** - Block entire airspace above obstacles
+- **Auto Path Recalculation** - Paths update when objects or obstacles move
 
-## Getting Started
+### Object System
+- **Shape Types** - Rectangles, circles, custom polygons
+- **Custom Drawing** - Free-draw polygons with resize/scale support
+- **Obstacles** - Static objects that block drone paths
+- **Position Locking** - Prevent accidental movement
 
-### Prerequisites
-- Node.js (v14 or higher)
-- npm or yarn
+## Technical Implementation
 
-### Installation
+### 3D Rendering (Three.js + React Three Fiber)
+Objects are rendered using extruded geometries from 2D paths. Custom shapes use `THREE.Shape` with `ExtrudeGeometry` for volumetric representation. The coordinate mapping converts 2D canvas (X,Y) to 3D space (X→X, Y→Z, altitude→Y).
+
+### Formation Algorithms
+
+**Ground Formations** - Drones distributed along object perimeter:
+- Circle: Equal angular spacing
+- Rectangle: Perimeter walking with uniform distribution
+- Custom: Path sampling with edge-length weighting
+
+**Air Formations** - Centroidal Voronoi Tessellation (CCVT):
+1. Sample uniform points within object polygon
+2. Initialize sites using farthest-point strategy
+3. Balanced assignment with capacity constraints
+4. Iterative centroid refinement for optimal coverage
+
+### Pathfinding System
+
+**2D Pathfinding** (`findPath`)
+- A\* search with 8-directional neighbor expansion
+- Collision detection for circles, rectangles, and custom polygons
+- Path simplification via line-of-sight pruning
+
+**3D Pathfinding** (`findPath3D`)
+- 26-directional neighbor expansion (includes vertical movement)
+- Height-aware collision: drones can fly over obstacles if altitude > obstacle height + margin
+- No-fly zones block entire airspace regardless of altitude
+- Fallback: rise-fly-descend trajectory if A\* exhausts iterations
+
+### Path Interpolation
+- Catmull-Rom spline smoothing for drawn paths
+- 3D coordinate interpolation along path segments
+- Easing functions: linear, quadratic, cubic
+
+## Quick Start
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd drone-swarm-simulation
-
-# Install dependencies
 npm install
-
-# Start development server
 npm run dev
 ```
 
-The application will open at `http://localhost:5173`
+Open `http://localhost:5173`
 
-## Usage Guide
+## Controls
 
-### Basic Workflow
+| Action | Control |
+|--------|---------|
+| Move objects | Left click + drag |
+| Pan | Middle click / Space + drag |
+| Zoom | Mouse wheel |
+| Multi-select | Shift + click |
+| Delete | Delete / Backspace |
+| Undo/Redo | Ctrl+Z / Ctrl+Y |
+| Copy/Paste | Ctrl+C / Ctrl+V |
 
-1. **Create Objects**
-   - Drag shapes from the sidebar library onto the canvas
-   - Adjust properties (size, position, rotation) in the properties panel
-   - Use custom shape tool to draw free-form polygons
+## Usage
 
-2. **Add Drones**
-   - Drag Air Drones (✈️) or Ground Drones (🚗) from the library
-   - Position drones manually or use formation generation
+1. **Add Objects** - Drag shapes from sidebar onto canvas
+2. **Add Drones** - Drag Air (✈️) or Ground (🚗) drones
+3. **Create States** - Click "New State", reposition objects
+4. **Generate Formations** - Select object → Enable Transport → Generate
+5. **Set Obstacles** - Mark objects as obstacles, optionally enable No-Fly Zone
+6. **Configure Paths** - Use "Auto" for pathfinding or "Draw" for custom routes
+7. **Simulate** - Press Play to animate between states
 
-3. **Create Multiple States**
-   - Click "New State" to add simulation states
-   - Reposition objects in each state
-   - Mark objects as active/inactive per state
+## Object Options
 
-4. **Generate Formations**
-   - Select an object and enable "Transport Mode"
-   - Click "🚗 Ground" or "✈️ Air" to generate formations
-   - Formations automatically lock to maintain relative positions
-
-5. **Draw Custom Paths**
-   - Select an object with multiple states
-   - In "Transition Paths", click "Draw Path"
-   - Click near green start point and drag to draw
-   - Release near red endpoint to auto-snap
-
-6. **Run Simulation**
-   - Press Play to animate between states
-   - Adjust playback speed as needed
-   - Watch drones follow formations and objects follow custom paths
-
-### Controls
-
-#### Canvas
-- **Left Click + Drag**: Move selected objects
-- **Middle Click / Space + Drag**: Pan viewport
-- **Mouse Wheel**: Zoom in/out
-- **Shift + Click**: Multi-select
-- **Click + Drag** (background): Box selection
-
-#### Keyboard Shortcuts
-- `Delete/Backspace`: Delete selected items
-- `Ctrl/Cmd + Z`: Undo
-- `Ctrl/Cmd + Y`: Redo
-- `Ctrl/Cmd + C`: Copy selected
-- `Ctrl/Cmd + V`: Paste
-- `Ctrl/Cmd + D`: Duplicate selected
-- `Ctrl/Cmd + A`: Select all
-- `Enter`: Finish drawing (custom shapes or paths)
-- `Escape`: Deselect / Cancel drawing
-
-### Object Properties
-
-#### Lock & Obstacle Settings
-- **🔒 Lock Position**: Prevent object from being moved
-- **🚧 Mark as Obstacle**: 
-  - Object turns gray
-  - Cannot be transported by drones
-  - Useful for static environment objects
-
-#### Transport Mode
-Available for non-obstacle objects only:
-- Enable to allow drone formations
-- Generate ground or air formations
-- Lock formations to maintain relative positions
-- Unlock to release drones
-
-#### Custom Paths
-- Draw curved paths between states
-- Objects follow paths during simulation
-- Clear paths to return to linear interpolation
-- Paths shown in path tracking visualization
-
-### Tips & Best Practices
-
-1. **Formation Planning**
-   - Create at least 2 states before drawing paths
-   - Position objects in final locations first
-   - Generate formations in the initial state
-
-2. **Path Drawing**
-   - Must start drag from green circle (start point)
-   - Must end near red circle (endpoint)
-   - Draw smoothly for better interpolation
-   - Press Esc to cancel and redraw
-
-3. **Performance**
-   - Use obstacles for static objects (no formation calculations)
-   - Lock positions when layout is finalized
-   - Limit active objects per state for complex simulations
-
-4. **Visual Organization**
-   - Use path tracking to verify movement routes
-   - Entity list shows hierarchy (objects with their drones)
-   - Icons indicate: 🔒 locked, 🚧 obstacle, formation status
+- 🔒 **Lock Position** - Prevent movement
+- 🚧 **Mark as Obstacle** - Static, blocks drone paths
+- 🚫 **No-Fly Zone** - Block drone flyover at any altitude
 
 ## Architecture
 
-### Key Components
-- **App.jsx**: Main application state and coordination
-- **Playground.jsx**: Interactive canvas with zoom/pan/selection
-- **Sidebar.jsx**: Property editor and object library
-- **EntityList.jsx**: Hierarchical entity management
-- **SimulationObject.jsx**: Renderers for shapes
-- **Drone.jsx**: Drone visualization (air/ground variants)
+```
+src/
+├── App.jsx                 # State management, simulation control
+├── components/
+│   ├── Playground.jsx      # 2D canvas with zoom/pan/selection
+│   ├── Playground3D.jsx    # 3D scene with Three.js
+│   ├── Object3D.jsx        # 3D shape rendering
+│   ├── Drone3D.jsx         # 3D drone visualization
+│   └── Sidebar.jsx         # Properties panel, entity list
+└── utils/
+    ├── formationCalculator.js  # CCVT, perimeter algorithms
+    ├── pathfinding.js          # 2D & 3D A* implementation
+    └── pathInterpolation.js    # Spline smoothing, 3D interpolation
+```
 
-### Utilities
-- **formationCalculator.js**: Ground and air formation algorithms
-- **pathInterpolation.js**: Catmull-Rom spline path smoothing
-- **pathfinding.js**: A* obstacle avoidance algorithm
-
-## Technology Stack
+## Tech Stack
 
 - **React** - UI framework
-- **Vite** - Build tool and dev server
-- **Lucide React** - Icon library
-- **UUID** - Unique identifiers
+- **Vite** - Build tool
+- **Three.js / React Three Fiber** - 3D rendering
+- **@react-three/drei** - 3D helpers and abstractions
 
 ## License
 
 MIT License
 
 ---
-
-**Created by Mario Sumali** | 2024
+**Mario Sumali** | 2024
