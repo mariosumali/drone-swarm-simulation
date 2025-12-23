@@ -302,14 +302,6 @@ export function findPath(start, end, obstacles, stateId, options = {}) {
     return [start, end];
 }
 
-/**
- * Generate an auto path for an object between two states, avoiding obstacles
- * @param {Object} object - The object to create path for
- * @param {string} fromStateId - Starting state ID
- * @param {string} toStateId - Ending state ID
- * @param {Array} allItems - All items in the simulation
- * @returns {Array} - Array of path points
- */
 export function generateAutoPath(object, fromStateId, toStateId, allItems) {
     const startPos = object.statePositions?.[fromStateId];
     const endPos = object.statePositions?.[toStateId];
@@ -354,3 +346,339 @@ export function generateAutoPath(object, fromStateId, toStateId, allItems) {
 
     return path;
 }
+
+// ============================================
+// 3D PATHFINDING FOR AERIAL DRONES
+// ============================================
+
+/**
+ * 3D Heuristic function (Euclidean distance in 3D)
+ */
+function heuristic3D(a, b) {
+    return Math.sqrt(
+        Math.pow(b.x - a.x, 2) +
+        Math.pow(b.y - a.y, 2) +
+        Math.pow((b.z || 0) - (a.z || 0), 2)
+    );
+}
+
+/**
+ * Get 3D neighbors for A* (26 directions including vertical)
+ */
+function getNeighbors3D(node, gridSize, verticalGridSize = 20) {
+    const neighbors = [];
+
+    // XY directions (8)
+    const xyDirs = [
+        { dx: 1, dy: 0 },
+        { dx: -1, dy: 0 },
+        { dx: 0, dy: 1 },
+        { dx: 0, dy: -1 },
+        { dx: 1, dy: 1 },
+        { dx: -1, dy: 1 },
+        { dx: 1, dy: -1 },
+        { dx: -1, dy: -1 }
+    ];
+
+    // Z directions
+    const zDirs = [-1, 0, 1];
+
+    for (const xyDir of xyDirs) {
+        for (const dz of zDirs) {
+            neighbors.push({
+                x: node.x + xyDir.dx * gridSize,
+                y: node.y + xyDir.dy * gridSize,
+                z: (node.z || 0) + dz * verticalGridSize
+            });
+        }
+    }
+
+    // Pure vertical movement
+    neighbors.push({ x: node.x, y: node.y, z: (node.z || 0) + verticalGridSize });
+    neighbors.push({ x: node.x, y: node.y, z: (node.z || 0) - verticalGridSize });
+
+    // Filter out negative Z (can't go underground)
+    return neighbors.filter(n => n.z >= 0);
+}
+
+/**
+ * Check if a point in 3D space collides with an obstacle
+ * Air drones can fly OVER obstacles if their altitude is above the obstacle height
+ */
+function isPointBlocked3D(point, obstacle, margin = 10) {
+    const pos = obstacle.statePositions?.[obstacle._checkStateId] || { x: 0, y: 0, z: 0 };
+    const obstacleZ = pos.z || 0;
+    const obstacleHeight = obstacle.height || 20;
+    const obstacleTop = obstacleZ + obstacleHeight;
+
+    // If drone is above obstacle top + margin, it's clear
+    if ((point.z || 0) > obstacleTop + margin) {
+        return false;
+    }
+
+    // If drone is below obstacle base - margin, it's clear (underground - shouldn't happen)
+    if ((point.z || 0) < obstacleZ - margin) {
+        return false;
+    }
+
+    // Check XY collision
+    return isPointInObstacle(
+        { x: point.x, y: point.y },
+        obstacle,
+        margin
+    );
+}
+
+/**
+ * Check if a 3D line segment is blocked by an obstacle
+ */
+function lineBlocked3D(p1, p2, obstacle, margin = 10) {
+    const steps = Math.max(10, Math.ceil(heuristic3D(p1, p2) / 10));
+
+    for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const point = {
+            x: p1.x + (p2.x - p1.x) * t,
+            y: p1.y + (p2.y - p1.y) * t,
+            z: (p1.z || 0) + ((p2.z || 0) - (p1.z || 0)) * t
+        };
+        if (isPointBlocked3D(point, obstacle, margin)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * 3D A* Pathfinding for aerial drones
+ * Routes drones up, over obstacles, and down to the target
+ * 
+ * @param {Object} start - Starting point {x, y, z}
+ * @param {Object} end - Ending point {x, y, z}
+ * @param {Array} obstacles - Array of obstacle items
+ * @param {string} stateId - Current state ID
+ * @param {Object} options - Options like gridSize, margin
+ * @returns {Array} - Array of 3D waypoints
+ */
+export function findPath3D(start, end, obstacles, stateId, options = {}) {
+    const {
+        gridSize = 20,
+        verticalGridSize = 20,
+        margin = 15,
+        maxIterations = 8000
+    } = options;
+
+    // Ensure start and end have z
+    const start3D = { x: start.x, y: start.y, z: start.z || 0 };
+    const end3D = { x: end.x, y: end.y, z: end.z || 0 };
+
+    console.log('3D AutoPath: Finding path from', start3D, 'to', end3D);
+
+    // Prepare obstacles with state reference
+    const preparedObstacles = obstacles.map(o => ({ ...o, _checkStateId: stateId }));
+
+    // Check if direct path is clear
+    let directPathClear = true;
+    for (const obstacle of preparedObstacles) {
+        if (lineBlocked3D(start3D, end3D, obstacle, margin)) {
+            directPathClear = false;
+            break;
+        }
+    }
+
+    if (directPathClear) {
+        console.log('3D AutoPath: Direct path is clear');
+        return [start3D, end3D];
+    }
+
+    console.log('3D AutoPath: Running 3D A* algorithm...');
+
+    // A* algorithm
+    const openSet = new Map();
+    const closedSet = new Set();
+    const cameFrom = new Map();
+    const gScore = new Map();
+    const fScore = new Map();
+
+    const nodeKey = (n) => `${Math.round(n.x / gridSize)},${Math.round(n.y / gridSize)},${Math.round((n.z || 0) / verticalGridSize)}`;
+
+    const startKey = nodeKey(start3D);
+    const startNode = {
+        x: Math.round(start3D.x / gridSize) * gridSize,
+        y: Math.round(start3D.y / gridSize) * gridSize,
+        z: Math.round(start3D.z / verticalGridSize) * verticalGridSize
+    };
+
+    openSet.set(startKey, startNode);
+    gScore.set(startKey, 0);
+    fScore.set(startKey, heuristic3D(startNode, end3D));
+
+    let iterations = 0;
+
+    while (openSet.size > 0 && iterations < maxIterations) {
+        iterations++;
+
+        // Find node with lowest fScore
+        let currentKey = null;
+        let lowestF = Infinity;
+        for (const [key, node] of openSet) {
+            const f = fScore.get(key) || Infinity;
+            if (f < lowestF) {
+                lowestF = f;
+                currentKey = key;
+            }
+        }
+
+        const current = openSet.get(currentKey);
+
+        // Check if we've reached the goal
+        if (heuristic3D(current, end3D) < gridSize * 2) {
+            // Reconstruct path
+            const path = [end3D];
+            let key = currentKey;
+            while (cameFrom.has(key)) {
+                const keyParts = key.split(',').map(Number);
+                const node = {
+                    x: keyParts[0] * gridSize,
+                    y: keyParts[1] * gridSize,
+                    z: keyParts[2] * verticalGridSize
+                };
+                path.unshift(node);
+                key = cameFrom.get(key);
+            }
+            path.unshift(start3D);
+
+            console.log('3D AutoPath: Found path with', path.length, 'waypoints');
+            return simplifyPath3D(path, preparedObstacles, margin);
+        }
+
+        openSet.delete(currentKey);
+        closedSet.add(currentKey);
+
+        // Explore neighbors
+        for (const neighbor of getNeighbors3D(current, gridSize, verticalGridSize)) {
+            const neighborKey = nodeKey(neighbor);
+
+            if (closedSet.has(neighborKey)) continue;
+
+            // Check if neighbor is blocked
+            let blocked = false;
+            for (const obstacle of preparedObstacles) {
+                if (isPointBlocked3D(neighbor, obstacle, margin)) {
+                    blocked = true;
+                    break;
+                }
+            }
+            if (blocked) continue;
+
+            // Check if path to neighbor is blocked
+            let pathBlocked = false;
+            for (const obstacle of preparedObstacles) {
+                if (lineBlocked3D(current, neighbor, obstacle, margin)) {
+                    pathBlocked = true;
+                    break;
+                }
+            }
+            if (pathBlocked) continue;
+
+            const tentativeG = (gScore.get(currentKey) || 0) + heuristic3D(current, neighbor);
+
+            if (!openSet.has(neighborKey)) {
+                openSet.set(neighborKey, neighbor);
+            } else if (tentativeG >= (gScore.get(neighborKey) || Infinity)) {
+                continue;
+            }
+
+            cameFrom.set(neighborKey, currentKey);
+            gScore.set(neighborKey, tentativeG);
+            fScore.set(neighborKey, tentativeG + heuristic3D(neighbor, end3D));
+        }
+    }
+
+    // No path found - try a simple "rise, fly, descend" approach
+    console.warn('3D AutoPath: A* failed, using rise-fly-descend approach');
+    return generateRiseFlyDescendPath(start3D, end3D, preparedObstacles, margin);
+}
+
+/**
+ * Simplify 3D path by removing unnecessary waypoints
+ */
+function simplifyPath3D(path, obstacles, margin) {
+    if (path.length <= 2) return path;
+
+    const simplified = [path[0]];
+    let current = 0;
+
+    while (current < path.length - 1) {
+        let farthest = current + 1;
+
+        for (let i = path.length - 1; i > current + 1; i--) {
+            let lineIsClear = true;
+            for (const obstacle of obstacles) {
+                if (lineBlocked3D(path[current], path[i], obstacle, margin)) {
+                    lineIsClear = false;
+                    break;
+                }
+            }
+            if (lineIsClear) {
+                farthest = i;
+                break;
+            }
+        }
+
+        simplified.push(path[farthest]);
+        current = farthest;
+    }
+
+    return simplified;
+}
+
+/**
+ * Fallback path: Rise above all obstacles, fly horizontally, then descend
+ */
+function generateRiseFlyDescendPath(start, end, obstacles, margin) {
+    // Find maximum obstacle height
+    let maxHeight = 0;
+    for (const obs of obstacles) {
+        const pos = obs.statePositions?.[obs._checkStateId] || { z: 0 };
+        const obsTop = (pos.z || 0) + (obs.height || 20);
+        if (obsTop > maxHeight) maxHeight = obsTop;
+    }
+
+    const cruiseAltitude = maxHeight + 50; // Fly well above obstacles
+
+    const path = [
+        { x: start.x, y: start.y, z: start.z || 0 },
+        { x: start.x, y: start.y, z: cruiseAltitude }, // Rise
+        { x: end.x, y: end.y, z: cruiseAltitude },     // Fly horizontally
+        { x: end.x, y: end.y, z: end.z || 0 }          // Descend
+    ];
+
+    return path;
+}
+
+/**
+ * Generate 3D auto path for an aerial drone
+ * @param {Object} drone - The drone object
+ * @param {Object} targetPos - Target position {x, y, z}
+ * @param {Array} obstacles - Obstacles to avoid
+ * @param {string} stateId - Current state ID
+ * @returns {Array} - Array of 3D path points
+ */
+export function generateAutoPath3D(drone, targetPos, obstacles, stateId) {
+    const startPos = drone.statePositions?.[stateId];
+
+    if (!startPos) {
+        console.warn('3D AutoPath: Missing start position');
+        return null;
+    }
+
+    return findPath3D(
+        { x: startPos.x, y: startPos.y, z: startPos.z || 0 },
+        { x: targetPos.x, y: targetPos.y, z: targetPos.z || 0 },
+        obstacles,
+        stateId,
+        { margin: 25, gridSize: 20, verticalGridSize: 20 }
+    );
+}
+

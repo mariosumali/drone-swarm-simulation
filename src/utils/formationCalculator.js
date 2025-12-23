@@ -340,9 +340,15 @@ export function calculateAirFormationCCVT(object, droneCount, opts = {}) {
         seed = 12345,
         samplesPerDrone = 150, // Increased for better resolution
         iters = 100,           // Increased for better convergence to symmetric centroidal Voronoi
+        hoverAltitude = 50,    // Height above object top where drones hover
     } = opts;
 
     if (droneCount <= 0) return [];
+
+    // Calculate object height for Z positioning
+    const objectHeight = object.height || 20;
+    const objectZ = object.statePositions?.[Object.keys(object.statePositions || {})[0]]?.z || 0;
+    const targetZ = objectZ + objectHeight + hoverAltitude;
 
     // Build polygon
     let poly;
@@ -383,7 +389,7 @@ export function calculateAirFormationCCVT(object, droneCount, opts = {}) {
 
     if (samples.length < droneCount) {
         const c = centroidOfPoints(poly);
-        return Array.from({ length: droneCount }, () => ({ x: c.x, y: c.y }));
+        return Array.from({ length: droneCount }, () => ({ x: c.x, y: c.y, z: targetZ }));
     }
 
     let sites = farthestPointInit(samples, droneCount);
@@ -442,9 +448,11 @@ export function calculateAirFormationCCVT(object, droneCount, opts = {}) {
     const scaleX = currentW / origW;
     const scaleY = currentH / origH;
 
+    // Return positions with Z coordinate for hovering above object
     return sites.map(p => ({
         x: (p.x - centerX) * scaleX,
-        y: (p.y - centerY) * scaleY
+        y: (p.y - centerY) * scaleY,
+        z: targetZ
     }));
 }
 

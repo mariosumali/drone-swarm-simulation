@@ -1035,7 +1035,7 @@ function App() {
     // Air Formation generation - creates new state and auto-paths
     const generateAirFormation = async (objectId) => {
         const { calculateFormation } = await import('./utils/formationCalculator');
-        const { findPath } = await import('./utils/pathfinding');
+        const { findPath3D } = await import('./utils/pathfinding');
 
         const object = items.find(i => i.id === objectId);
         if (!object || object.type === 'drone') return;
@@ -1060,7 +1060,7 @@ function App() {
             }))
             .sort((a, b) => a.distance - b.distance);
 
-        // Calculate formation for air drones
+        // Calculate formation for air drones (now includes Z coordinate)
         const formationOffsets = calculateFormation(object, sortedDrones.length, 'air');
 
         // Create new state after current
@@ -1102,21 +1102,30 @@ function App() {
                 };
             }
 
-            // Assigned drones - set formation positions with auto-paths
+            // Assigned drones - set formation positions with 3D auto-paths
             const droneIndex = sortedDrones.findIndex(d => d.drone.id === item.id);
             if (droneIndex !== -1) {
                 const droneCurrentPos = item.statePositions[currentStateId];
+                const offset = formationOffsets[droneIndex];
                 const targetPos = {
-                    x: objectPos.x + formationOffsets[droneIndex].x,
-                    y: objectPos.y + formationOffsets[droneIndex].y
+                    x: objectPos.x + offset.x,
+                    y: objectPos.y + offset.y,
+                    z: offset.z || 70 // Use formation Z or default to 70 (object height + hover)
                 };
 
-                const autoPath = findPath(droneCurrentPos, targetPos, obstacles, currentStateId);
+                // Use 3D pathfinding for aerial drones
+                const autoPath = findPath3D(
+                    { x: droneCurrentPos.x, y: droneCurrentPos.y, z: droneCurrentPos.z || 0 },
+                    targetPos,
+                    obstacles,
+                    currentStateId
+                );
 
                 const newStatePositions = { ...item.statePositions };
                 newStatePositions[newStateId] = {
                     x: targetPos.x,
                     y: targetPos.y,
+                    z: targetPos.z,
                     rotation: 0,
                     customPath: autoPath,
                     pathType: 'auto'
