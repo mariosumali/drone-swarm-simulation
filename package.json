@@ -16,6 +16,7 @@
     "@react-three/fiber": "^9.4.2",
     "@vitejs/plugin-react": "^4.3.4",
     "lucide-react": "^0.473.0",
+    "matter-js": "^0.20.0",
     "prop-types": "^15.8.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

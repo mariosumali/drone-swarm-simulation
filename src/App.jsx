@@ -10,6 +10,7 @@ import { EntityList } from './components/EntityList';
 import { ZoomControls } from './components/ZoomControls';
 import { TelemetryDashboard } from './components/TelemetryDashboard';
 import { generateAutoPath } from './utils/pathfinding';
+import { useAgentSimulation } from './agents';
 
 
 function App() {
@@ -39,6 +40,7 @@ function App() {
     const [showDronePaths, setShowDronePaths] = useState(true);
     const [showForceVectors, setShowForceVectors] = useState(false);
     const [showTelemetry, setShowTelemetry] = useState(false);
+    const [agentMode, setAgentMode] = useState(false); // Decentralized agent control mode
     const [show3DMode, setShow3DMode] = useState(false); // 2D mode by default
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
     const [clipboard, setClipboard] = useState([]);
@@ -142,6 +144,29 @@ function App() {
             return () => clearTimeout(timer);
         }
     }, [viewport.needsCenter]);
+
+    // Agent simulation hook for decentralized control
+    const {
+        agentStates,
+        isRunning: agentRunning,
+        collisions,
+        startAgentMode,
+        stopAgentMode,
+        setGoalsFromNextState,
+        updateAgentConfig
+    } = useAgentSimulation(items, states, currentStateId, settings);
+
+    // Toggle agent mode
+    const toggleAgentMode = () => {
+        if (agentMode) {
+            stopAgentMode();
+            setAgentMode(false);
+        } else {
+            setGoalsFromNextState();
+            startAgentMode();
+            setAgentMode(true);
+        }
+    };
 
     const handleToggleRecord = async () => {
         if (isRecording) {
@@ -1706,6 +1731,28 @@ function App() {
                     >
                         {show3DMode ? '🎮 3D' : '📐 2D'}
                     </button>
+
+                    {/* Agent Mode Toggle */}
+                    <button
+                        onClick={toggleAgentMode}
+                        style={{
+                            padding: '0.5rem 0.75rem',
+                            background: agentMode ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--bg-tertiary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '8px',
+                            color: agentMode ? 'white' : 'var(--text-primary)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontWeight: 600,
+                            fontSize: '12px',
+                            transition: 'all 0.2s'
+                        }}
+                        title={agentMode ? 'Stop Autonomous Mode' : 'Start Autonomous Agent Mode (Real-time Physics)'}
+                    >
+                        {agentMode ? '⏹️ Stop' : '🤖 Agent'}
+                    </button>
                     <button
                         onClick={handleToggleRecord}
                         style={{
@@ -2121,7 +2168,6 @@ function App() {
                                     autoSave: false,
                                     panSensitivity: 0.5,
                                     zoomSensitivity: 1,
-                                    showObjectLabels: true,
                                     showObjectLabels: true,
                                     pathSmoothness: 10,
                                     easing: 'linear'
