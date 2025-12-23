@@ -176,6 +176,21 @@ export function Sidebar({ items, selectedIds, onUpdateItem, onDelete, states, cu
                                     />
                                     <span>🚧 Mark as Obstacle</span>
                                 </label>
+
+                                {/* No-Fly Zone toggle - only for obstacles */}
+                                {singleSelectedItem.isObstacle && (
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', flex: '1 1 100%', fontSize: '0.875rem' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={singleSelectedItem.noFlyZone || false}
+                                            onChange={(e) => onUpdateItem(singleSelectedItem.id, {
+                                                noFlyZone: e.target.checked
+                                            })}
+                                            style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                        />
+                                        <span>🚫 No-Fly Zone (drones cannot fly over)</span>
+                                    </label>
+                                )}
                             </div>
                         )}
 
