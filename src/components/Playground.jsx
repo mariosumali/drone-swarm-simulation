@@ -849,8 +849,19 @@ export function Playground({
                                     const fromState = activeStates[i];
                                     const toState = activeStates[i + 1];
 
-                                    // If locked to object, use object's path with offset applied
-                                    if (parentObject) {
+                                    // First check if drone has its own customPath for this transition
+                                    const toStatePos = item.statePositions?.[toState.id];
+                                    const droneCustomPath = toStatePos?.customPath;
+
+                                    // Use drone's own path if it has one (e.g., initial lock-on path)
+                                    if (droneCustomPath && droneCustomPath.length > 1) {
+                                        pathSegments.push(...droneCustomPath.map((p, j) => ({
+                                            x: p.x,
+                                            y: p.y,
+                                            isFirst: i === 0 && j === 0
+                                        })));
+                                    } else if (parentObject) {
+                                        // If locked to object and no drone path, use object's path with offset
                                         const pathKey = `${fromState.id}_to_${toState.id}`;
                                         const objectPath = parentObject.customTransitionPaths?.[pathKey];
 

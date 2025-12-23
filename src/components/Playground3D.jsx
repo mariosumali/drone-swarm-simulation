@@ -456,8 +456,22 @@ function SceneContent({
                     const fromState = activeStates[i];
                     const toState = activeStates[i + 1];
 
-                    // If locked to object, use object's path with offset applied
-                    if (parentObject) {
+                    // First check if drone has its own customPath for this transition
+                    const toPos = item.statePositions?.[toState.id];
+                    const droneCustomPath = toPos?.customPath;
+
+                    // Use drone's own path if it has one (e.g., initial lock-on path)
+                    if (droneCustomPath && droneCustomPath.length > 1) {
+                        const points = droneCustomPath.map(p =>
+                            new THREE.Vector3(p.x, p.z || 0, p.y)
+                        );
+                        lines.push({
+                            id: `${item.id}-${fromState.id}-${toState.id}`,
+                            points,
+                            color: item.droneType === 'ground' ? '#8b5cf6' : '#60a5fa'
+                        });
+                    } else if (parentObject) {
+                        // If locked to object and no drone path, use object's path with offset
                         const pathKey = `${fromState.id}_to_${toState.id}`;
                         const objectPath = parentObject.customTransitionPaths?.[pathKey];
 
@@ -513,30 +527,17 @@ function SceneContent({
                             }
                         }
                     } else {
-                        // Not locked - use drone's own customPath
-                        const toPos = item.statePositions?.[toState.id];
-
-                        if (toPos?.customPath && toPos.customPath.length > 1) {
-                            const points = toPos.customPath.map(p =>
-                                new THREE.Vector3(p.x, p.z || 0, p.y)
-                            );
+                        // Not locked and no customPath - use straight line
+                        const fromPos = item.statePositions?.[fromState.id];
+                        if (fromPos && toPos) {
                             lines.push({
                                 id: `${item.id}-${fromState.id}-${toState.id}`,
-                                points,
+                                points: [
+                                    new THREE.Vector3(fromPos.x, fromPos.z || 0, fromPos.y),
+                                    new THREE.Vector3(toPos.x, toPos.z || 0, toPos.y)
+                                ],
                                 color: item.droneType === 'ground' ? '#8b5cf6' : '#60a5fa'
                             });
-                        } else {
-                            const fromPos = item.statePositions?.[fromState.id];
-                            if (fromPos && toPos) {
-                                lines.push({
-                                    id: `${item.id}-${fromState.id}-${toState.id}`,
-                                    points: [
-                                        new THREE.Vector3(fromPos.x, fromPos.z || 0, fromPos.y),
-                                        new THREE.Vector3(toPos.x, toPos.z || 0, toPos.y)
-                                    ],
-                                    color: item.droneType === 'ground' ? '#8b5cf6' : '#60a5fa'
-                                });
-                            }
                         }
                     }
                 }
