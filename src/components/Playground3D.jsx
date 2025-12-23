@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { Scene3D } from './Scene3D';
 import { Drone3D } from './Drone3D';
 import { Object3D } from './Object3D';
+import { interpolateAlongPath, EASING_FUNCTIONS as PATH_EASING } from '../utils/pathInterpolation';
 
 // Helper to interpolate values
 const interpolate = (start, end, progress) => start + (end - start) * progress;
@@ -41,7 +42,15 @@ function SceneContent({
     const groundRef = useRef();
     const [draggedItem, setDraggedItem] = useState(null);
     const [contextMenu, setContextMenu] = useState(null); // { x, y, worldPos }
+    const [showObjectSubmenu, setShowObjectSubmenu] = useState(false);
+    const [showDroneSubmenu, setShowDroneSubmenu] = useState(false);
+    const [zDragMode, setZDragMode] = useState(false); // Shift+Drag for Z-axis
+    const [rotationMode, setRotationMode] = useState(false); // R+Drag for rotation
+    const [rotationStart, setRotationStart] = useState(null); // Initial pointer position for rotation
+    const [scaleMode, setScaleMode] = useState(false); // S+Drag for scaling
+    const [scaleStart, setScaleStart] = useState(null); // Initial pointer position and scale for scaling
     const dragPlane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
+    const verticalPlane = useRef(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)); // For Z-axis dragging
     const dragOffset = useRef(new THREE.Vector3());
 
     // Get item position with interpolation during simulation
@@ -54,14 +63,36 @@ function SceneContent({
 
         const currentStateIndex = states.findIndex(s => s.id === currentStateId);
         const nextStateIndex = (currentStateIndex + 1) % states.length;
-        const currentPos = item.statePositions[states[currentStateIndex].id];
-        const nextPos = item.statePositions[states[nextStateIndex].id];
+        const currentState = states[currentStateIndex];
+        const nextState = states[nextStateIndex];
+        const currentPos = item.statePositions[currentState?.id];
+        const nextPos = item.statePositions[nextState?.id];
 
         if (!currentPos || !nextPos) {
             const pos = currentPos || nextPos || { x: 0, y: 0, z: 0 };
             return [pos.x, pos.z || 0, pos.y];
         }
 
+        // Check for custom path in nextPos (new format)
+        if (nextPos.customPath && nextPos.customPath.length > 1) {
+            const result = interpolateAlongPath(nextPos.customPath, animationProgress, settings.easing);
+            const z = interpolate(currentPos.z || 0, nextPos.z || 0, animationProgress);
+            return [result.x, z, result.y];
+        }
+
+        // Check for custom transition path (old format)
+        if (currentState && nextState) {
+            const pathKey = `${currentState.id}_to_${nextState.id}`;
+            const customPath = item.customTransitionPaths?.[pathKey];
+
+            if (customPath && customPath.length > 1) {
+                const result = interpolateAlongPath(customPath, animationProgress, settings.easing);
+                const z = interpolate(currentPos.z || 0, nextPos.z || 0, animationProgress);
+                return [result.x, z, result.y];
+            }
+        }
+
+        // Standard linear interpolation
         const easing = EASING_FUNCTIONS[settings.easing] || EASING_FUNCTIONS.linear;
         const t = easing(animationProgress);
 
@@ -99,51 +130,196 @@ function SceneContent({
         }
 
         const pos = getItemPosition(item);
-        dragPlane.current.constant = -pos[1];
 
-        raycaster.setFromCamera(pointer, camera);
-        const intersection = new THREE.Vector3();
-        raycaster.ray.intersectPlane(dragPlane.current, intersection);
+        // Check for scale mode (S key)
+        if (window._sKeyPressed) {
+            setScaleMode(true);
+            const currentScale = item.statePositions?.[currentStateId]?.scale || 1;
+            setScaleStart({ x: e.clientX, y: e.clientY, initialScale: currentScale });
+            setDraggedItem(item.id);
+            if (onDragStateChange) onDragStateChange(true);
+            return;
+        }
 
-        dragOffset.current.set(
-            pos[0] - intersection.x,
-            0,
-            pos[2] - intersection.z
-        );
+        // Check for rotation mode (R key)
+        if (e.nativeEvent?.rKey || window._rKeyPressed) {
+            setRotationMode(true);
+            setRotationStart({ x: e.clientX, y: e.clientY, initialRotation: item.statePositions?.[currentStateId]?.rotation || 0 });
+            setDraggedItem(item.id);
+            if (onDragStateChange) onDragStateChange(true);
+            return;
+        }
+
+        // Check for Z-drag mode (Shift key)
+        if (e.shiftKey) {
+            setZDragMode(true);
+            // Set up vertical plane facing camera for Y-axis dragging (3D Y = altitude = 2D Z)
+            const cameraDir = camera.getWorldDirection(new THREE.Vector3());
+            // Use horizontal plane normal (we want to drag up/down)
+            verticalPlane.current.setFromNormalAndCoplanarPoint(
+                new THREE.Vector3(cameraDir.x, 0, cameraDir.z).normalize(),
+                new THREE.Vector3(pos[0], pos[1], pos[2])
+            );
+
+            raycaster.setFromCamera(pointer, camera);
+            const intersection = new THREE.Vector3();
+            raycaster.ray.intersectPlane(verticalPlane.current, intersection);
+
+            if (intersection) {
+                dragOffset.current.set(0, pos[1] - intersection.y, 0);
+            }
+        } else {
+            setZDragMode(false);
+            // Normal horizontal drag
+            dragPlane.current.constant = -pos[1];
+
+            raycaster.setFromCamera(pointer, camera);
+            const intersection = new THREE.Vector3();
+            raycaster.ray.intersectPlane(dragPlane.current, intersection);
+
+            dragOffset.current.set(
+                pos[0] - intersection.x,
+                0,
+                pos[2] - intersection.z
+            );
+        }
 
         setDraggedItem(item.id);
         if (onDragStateChange) onDragStateChange(true);
-    }, [isSimulating, selectedIds, onSelectionChange, getItemPosition, camera, raycaster, pointer]);
+    }, [isSimulating, selectedIds, onSelectionChange, getItemPosition, camera, raycaster, pointer, currentStateId]);
 
     // Handle pointer move for dragging
     useFrame(() => {
         if (!draggedItem) return;
 
+        // Handle rotation mode
+        if (rotationMode && rotationStart) {
+            // Rotation is handled via global mouse move listener
+            return;
+        }
+
+        // Handle scale mode
+        if (scaleMode && scaleStart) {
+            // Scaling is handled via global mouse move listener
+            return;
+        }
+
         raycaster.setFromCamera(pointer, camera);
         const intersection = new THREE.Vector3();
-        raycaster.ray.intersectPlane(dragPlane.current, intersection);
 
-        if (intersection) {
-            let newX = intersection.x + dragOffset.current.x;
-            let newY = intersection.z + dragOffset.current.z; // 3D Z -> 2D Y (no negation now)
+        if (zDragMode) {
+            // Z-axis dragging (altitude)
+            raycaster.ray.intersectPlane(verticalPlane.current, intersection);
+            if (intersection) {
+                let newZ = intersection.y + dragOffset.current.y;
 
-            // Apply snap to grid if enabled
-            if (settings.snapToGrid && settings.gridSize) {
-                newX = Math.round(newX / settings.gridSize) * settings.gridSize;
-                newY = Math.round(newY / settings.gridSize) * settings.gridSize;
+                // Clamp to non-negative altitude
+                newZ = Math.max(0, newZ);
+
+                // Apply snap to grid if enabled
+                if (settings.snapToGrid && settings.gridSize) {
+                    newZ = Math.round(newZ / settings.gridSize) * settings.gridSize;
+                }
+
+                selectedIds.forEach(id => {
+                    onUpdateItem(id, { z: Math.round(newZ) });
+                });
             }
+        } else {
+            // Normal XY dragging
+            raycaster.ray.intersectPlane(dragPlane.current, intersection);
 
-            selectedIds.forEach(id => {
-                onUpdateItem(id, { x: Math.round(newX), y: Math.round(newY) });
-            });
+            if (intersection) {
+                let newX = intersection.x + dragOffset.current.x;
+                let newY = intersection.z + dragOffset.current.z; // 3D Z -> 2D Y
+
+                // Apply snap to grid if enabled
+                if (settings.snapToGrid && settings.gridSize) {
+                    newX = Math.round(newX / settings.gridSize) * settings.gridSize;
+                    newY = Math.round(newY / settings.gridSize) * settings.gridSize;
+                }
+
+                selectedIds.forEach(id => {
+                    onUpdateItem(id, { x: Math.round(newX), y: Math.round(newY) });
+                });
+            }
         }
     });
 
     // Handle pointer up
     const handlePointerUp = useCallback(() => {
         setDraggedItem(null);
+        setZDragMode(false);
+        setRotationMode(false);
+        setRotationStart(null);
+        setScaleMode(false);
+        setScaleStart(null);
         if (onDragStateChange) onDragStateChange(false);
     }, [onDragStateChange]);
+
+    // Handle mouse move for rotation
+    useEffect(() => {
+        if (!rotationMode || !rotationStart || !draggedItem) return;
+
+        const handleMouseMove = (e) => {
+            const deltaX = e.clientX - rotationStart.x;
+            // 1 pixel = 1 degree of rotation
+            const newRotation = rotationStart.initialRotation + deltaX;
+
+            selectedIds.forEach(id => {
+                onUpdateItem(id, { rotation: Math.round(newRotation) % 360 });
+            });
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        return () => window.removeEventListener('mousemove', handleMouseMove);
+    }, [rotationMode, rotationStart, draggedItem, selectedIds, onUpdateItem]);
+
+    // Handle mouse move for scaling
+    useEffect(() => {
+        if (!scaleMode || !scaleStart || !draggedItem) return;
+
+        const handleMouseMove = (e) => {
+            const deltaX = e.clientX - scaleStart.x;
+            // 2 pixels = 0.01 scale change, so 200 pixels = 1.0 scale change
+            const scaleDelta = deltaX / 200;
+            const newScale = Math.max(0.1, Math.min(5, scaleStart.initialScale + scaleDelta));
+
+            selectedIds.forEach(id => {
+                onUpdateItem(id, { scale: Math.round(newScale * 100) / 100 });
+            });
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        return () => window.removeEventListener('mousemove', handleMouseMove);
+    }, [scaleMode, scaleStart, draggedItem, selectedIds, onUpdateItem]);
+
+    // Track R key for rotation mode and S key for scale mode
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'r' || e.key === 'R') {
+                window._rKeyPressed = true;
+            }
+            if (e.key === 's' || e.key === 'S') {
+                window._sKeyPressed = true;
+            }
+        };
+        const handleKeyUp = (e) => {
+            if (e.key === 'r' || e.key === 'R') {
+                window._rKeyPressed = false;
+            }
+            if (e.key === 's' || e.key === 'S') {
+                window._sKeyPressed = false;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, []);
 
     // Global pointer up listener
     useEffect(() => {
@@ -297,43 +473,177 @@ function SceneContent({
                     center
                     style={{ pointerEvents: 'auto' }}
                 >
-                    <div style={{
-                        background: 'rgba(15, 23, 42, 0.95)',
-                        border: '1px solid rgba(148, 163, 184, 0.3)',
-                        borderRadius: '8px',
-                        padding: '8px 0',
-                        minWidth: '160px',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-                        fontFamily: 'system-ui, -apple-system, sans-serif'
-                    }}>
-                        <div style={{ padding: '4px 12px', fontSize: '10px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            Add Item
+                    <div
+                        style={{
+                            background: 'rgba(15, 23, 42, 0.95)',
+                            border: '1px solid rgba(148, 163, 184, 0.3)',
+                            borderRadius: '8px',
+                            padding: '8px 0',
+                            minWidth: '160px',
+                            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                            fontFamily: 'system-ui, -apple-system, sans-serif'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{ padding: '4px 12px', fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Add at ({Math.round(contextMenu.worldX)}, {Math.round(contextMenu.worldY)})
                         </div>
-                        {[
-                            { type: 'drone', label: '✈️ Air Drone', color: '#60a5fa' },
-                            { type: 'groundDrone', label: '🚗 Ground Drone', color: '#8b5cf6' },
-                            { type: 'rectangle', label: '⬜ Rectangle', color: '#10b981' },
-                            { type: 'circle', label: '⭕ Circle', color: '#10b981' }
-                        ].map(item => (
+                        <div style={{ height: '1px', background: 'rgba(148, 163, 184, 0.2)', margin: '4px 0' }} />
+
+                        {/* Add Drone with Submenu */}
+                        <div
+                            style={{ position: 'relative' }}
+                            onMouseEnter={() => setShowDroneSubmenu(true)}
+                            onMouseLeave={() => setShowDroneSubmenu(false)}
+                        >
                             <div
-                                key={item.type}
-                                onClick={() => addItemAtPosition(item.type)}
                                 style={{
                                     padding: '8px 12px',
                                     cursor: 'pointer',
                                     color: '#e2e8f0',
-                                    fontSize: '13px',
+                                    fontSize: '0.85rem',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '8px',
-                                    transition: 'background 0.15s'
+                                    justifyContent: 'space-between',
+                                    background: showDroneSubmenu ? 'rgba(99, 102, 241, 0.2)' : 'transparent'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             >
-                                {item.label}
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ color: '#60a5fa' }}>+</span> Add Drone
+                                </span>
+                                <span style={{ color: '#94a3b8' }}>▶</span>
                             </div>
-                        ))}
+
+                            {/* Drone Submenu */}
+                            {showDroneSubmenu && (
+                                <div style={{
+                                    position: 'absolute',
+                                    left: '100%',
+                                    top: 0,
+                                    marginLeft: '4px',
+                                    background: 'rgba(15, 23, 42, 0.95)',
+                                    border: '1px solid rgba(148, 163, 184, 0.3)',
+                                    borderRadius: '8px',
+                                    padding: '4px 0',
+                                    minWidth: '150px',
+                                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)'
+                                }}>
+                                    <div
+                                        onClick={() => addItemAtPosition('drone')}
+                                        style={{
+                                            padding: '8px 12px',
+                                            cursor: 'pointer',
+                                            color: '#e2e8f0',
+                                            fontSize: '0.85rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '10px',
+                                            textAlign: 'left'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2">
+                                            <path d="M12 2L4 8v12h16V8l-8-6z" />
+                                            <path d="M12 22V12" />
+                                            <path d="M4 8l8 4 8-4" />
+                                        </svg>
+                                        Air Drone
+                                    </div>
+                                    <div
+                                        onClick={() => addItemAtPosition('groundDrone')}
+                                        style={{
+                                            padding: '8px 12px',
+                                            cursor: 'pointer',
+                                            color: '#e2e8f0',
+                                            fontSize: '0.85rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '10px',
+                                            textAlign: 'left'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(139, 92, 246, 0.2)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2">
+                                            <rect x="2" y="6" width="20" height="12" rx="2" />
+                                            <circle cx="6" cy="18" r="2" />
+                                            <circle cx="18" cy="18" r="2" />
+                                        </svg>
+                                        Ground Drone
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Add Object with Submenu */}
+                        <div
+                            style={{ position: 'relative' }}
+                            onMouseEnter={() => setShowObjectSubmenu(true)}
+                            onMouseLeave={() => setShowObjectSubmenu(false)}
+                        >
+                            <div
+                                style={{
+                                    padding: '8px 12px',
+                                    cursor: 'pointer',
+                                    color: '#e2e8f0',
+                                    fontSize: '0.85rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    background: showObjectSubmenu ? 'rgba(244, 114, 182, 0.2)' : 'transparent'
+                                }}
+                            >
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ color: '#f472b6' }}>+</span> Add Object
+                                </span>
+                                <span style={{ color: '#94a3b8' }}>▶</span>
+                            </div>
+
+                            {/* Object Submenu */}
+                            {showObjectSubmenu && (
+                                <div style={{
+                                    position: 'absolute',
+                                    left: '100%',
+                                    top: 0,
+                                    marginLeft: '4px',
+                                    background: 'rgba(15, 23, 42, 0.95)',
+                                    border: '1px solid rgba(148, 163, 184, 0.3)',
+                                    borderRadius: '8px',
+                                    padding: '4px 0',
+                                    minWidth: '140px',
+                                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)'
+                                }}>
+                                    {[
+                                        { type: 'rectangle', label: 'Rectangle', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#f472b6" strokeWidth="1.5"><rect x="1" y="1" width="12" height="12" rx="1" /></svg> },
+                                        { type: 'circle', label: 'Circle', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#f472b6" strokeWidth="1.5"><circle cx="7" cy="7" r="6" /></svg> },
+                                        { type: 'triangle', label: 'Triangle', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#f472b6" strokeWidth="1.5"><path d="M7 1L13 13H1L7 1Z" /></svg> },
+                                        { type: 'hexagon', label: 'Hexagon', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#f472b6" strokeWidth="1.5"><path d="M7 1L12.5 4V10L7 13L1.5 10V4L7 1Z" /></svg> },
+                                        { type: 'star', label: 'Star', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#f472b6" strokeWidth="1.5"><path d="M7 1L8.5 5.5H13L9.5 8.5L11 13L7 10L3 13L4.5 8.5L1 5.5H5.5L7 1Z" /></svg> }
+                                    ].map(item => (
+                                        <div
+                                            key={item.type}
+                                            onClick={() => addItemAtPosition(item.type)}
+                                            style={{
+                                                padding: '8px 12px',
+                                                cursor: 'pointer',
+                                                color: '#e2e8f0',
+                                                fontSize: '0.85rem',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px',
+                                                textAlign: 'left'
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(244, 114, 182, 0.2)'}
+                                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                        >
+                                            {item.icon}
+                                            {item.label}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </Html>
             )}
@@ -343,12 +653,81 @@ function SceneContent({
 
 export function Playground3D(props) {
     const [isDragging, setIsDragging] = useState(false);
+    const [isDragOver, setIsDragOver] = useState(false);
+    const containerRef = useRef(null);
+
+    // Handle drop from library
+    const handleDrop = useCallback((e) => {
+        e.preventDefault();
+        setIsDragOver(false);
+
+        const itemType = e.dataTransfer.getData('itemType');
+        if (!itemType || !props.onAddItem) return;
+
+        // Get the container's bounding rect
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        // Calculate relative position within the container (center as origin)
+        const relX = e.clientX - rect.left - rect.width / 2;
+        const relY = e.clientY - rect.top - rect.height / 2;
+
+        // Scale based on approximate 3D view scale (rough estimate)
+        // This maps the screen position to world coordinates
+        const scale = 0.5; // Adjust based on default zoom
+        const worldX = relX * scale;
+        const worldY = relY * scale;
+
+        props.onAddItem(itemType, worldX, worldY);
+    }, [props.onAddItem]);
+
+    const handleDragOver = useCallback((e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setIsDragOver(true);
+    }, []);
+
+    const handleDragLeave = useCallback(() => {
+        setIsDragOver(false);
+    }, []);
 
     return (
-        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+        <div
+            ref={containerRef}
+            style={{ width: '100%', height: '100%', position: 'relative' }}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+        >
             <Scene3D controlsEnabled={!isDragging} gridSize={props.settings?.gridSize || 20}>
                 <SceneContent {...props} onDragStateChange={setIsDragging} />
             </Scene3D>
+
+            {/* Drop zone indicator */}
+            {isDragOver && (
+                <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    border: '3px dashed #60a5fa',
+                    background: 'rgba(96, 165, 250, 0.1)',
+                    pointerEvents: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 100
+                }}>
+                    <div style={{
+                        padding: '16px 32px',
+                        background: 'rgba(15, 23, 42, 0.95)',
+                        borderRadius: '12px',
+                        color: '#60a5fa',
+                        fontSize: '16px',
+                        fontWeight: 600
+                    }}>
+                        Drop to add item
+                    </div>
+                </div>
+            )}
 
             {/* 3D Mode indicator */}
             <div style={{
@@ -368,7 +747,7 @@ export function Playground3D(props) {
             }}>
                 <span>🎮</span>
                 <span>3D Mode</span>
-                <span style={{ color: '#94a3b8', fontWeight: 400 }}>• Right-click: Add • Delete key: Remove</span>
+                <span style={{ color: '#94a3b8', fontWeight: 400 }}>• Shift+Drag: Altitude • R+Drag: Rotate • S+Drag: Scale</span>
             </div>
         </div>
     );

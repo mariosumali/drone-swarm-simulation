@@ -6,6 +6,7 @@ export function Object3D({
     data,
     position = [0, 0, 0],
     rotation = [0, 0, 0],
+    scale = 1,
     selected = false,
     onClick,
     onPointerDown,
@@ -13,20 +14,30 @@ export function Object3D({
 }) {
     const [hovered, setHovered] = useState(false);
 
-    const { type, w = 100, h = 100, radius = 50, height = 100, customPath, isObstacle } = data;
+    const { type, w = 100, h = 100, radius = 50, height = 20, customPath, isObstacle } = data;
+
+    // Get scale from data if available
+    const objectScale = data.statePositions?.[Object.keys(data.statePositions || {})[0]]?.scale || scale;
 
     // Colors
     const baseColor = isObstacle ? '#ef4444' : '#10b981';
     const emissiveColor = selected ? '#ffffff' : (hovered ? baseColor : '#000000');
     const emissiveIntensity = selected ? 0.2 : (hovered ? 0.1 : 0);
 
-    // Custom shape geometry
+    // Custom shape geometry - center around origin
     const customShape = useMemo(() => {
         if (type === 'custom' && customPath && customPath.length > 2) {
+            // Calculate centroid to center the shape at origin
+            const xs = customPath.map(p => p.x);
+            const ys = customPath.map(p => p.y);
+            const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+            const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+
             const shape = new THREE.Shape();
-            shape.moveTo(customPath[0].x, -customPath[0].y);
+            // Center the shape by subtracting the centroid
+            shape.moveTo(customPath[0].x - centerX, -(customPath[0].y - centerY));
             for (let i = 1; i < customPath.length; i++) {
-                shape.lineTo(customPath[i].x, -customPath[i].y);
+                shape.lineTo(customPath[i].x - centerX, -(customPath[i].y - centerY));
             }
             shape.closePath();
             return shape;
@@ -71,7 +82,7 @@ export function Object3D({
             case 'custom':
                 if (customShape) {
                     return (
-                        <mesh castShadow receiveShadow position={[0, height / 2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                        <mesh castShadow receiveShadow position={[0, 0, 0]} rotation={[-Math.PI / 2, 0, 0]}>
                             <extrudeGeometry args={[customShape, { depth: height, bevelEnabled: false }]} />
                             <meshStandardMaterial
                                 color={baseColor}
@@ -115,6 +126,7 @@ export function Object3D({
         <group
             position={position}
             rotation={rotation}
+            scale={[objectScale, objectScale, objectScale]}
             onClick={onClick}
             onPointerDown={onPointerDown}
             onPointerOver={() => setHovered(true)}

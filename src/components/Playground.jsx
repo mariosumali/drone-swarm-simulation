@@ -23,6 +23,8 @@ export function Playground({
     const [activeDrag, setActiveDrag] = useState(null);
     const [isPanning, setIsPanning] = useState(false);
     const [contextMenu, setContextMenu] = useState(null); // { x, y }
+    const [showObjectSubmenu, setShowObjectSubmenu] = useState(false);
+    const [showDroneSubmenu, setShowDroneSubmenu] = useState(false);
     const [panStart, setPanStart] = useState(null);
     const [rotatingItem, setRotatingItem] = useState(null);
 
@@ -548,9 +550,17 @@ export function Playground({
 
     // Close context menu on click elsewhere
     React.useEffect(() => {
-        const handleClick = () => setContextMenu(null);
+        const handleClick = () => {
+            setContextMenu(null);
+            setShowObjectSubmenu(false);
+            setShowDroneSubmenu(false);
+        };
         const handleEscape = (e) => {
-            if (e.key === 'Escape') setContextMenu(null);
+            if (e.key === 'Escape') {
+                setContextMenu(null);
+                setShowObjectSubmenu(false);
+                setShowDroneSubmenu(false);
+            }
         };
         if (contextMenu) {
             window.addEventListener('click', handleClick);
@@ -636,8 +646,8 @@ export function Playground({
                             position: 'absolute',
                             top: 0,
                             left: 0,
-                            width: '100%',
-                            height: '100%',
+                            width: 1,
+                            height: 1,
                             pointerEvents: 'none',
                             overflow: 'visible',
                             opacity: 0.7,
@@ -745,8 +755,8 @@ export function Playground({
                             position: 'absolute',
                             top: 0,
                             left: 0,
-                            width: '100%',
-                            height: '100%',
+                            width: 1,
+                            height: 1,
                             pointerEvents: 'none',
                             overflow: 'visible'
                         }}>
@@ -816,8 +826,8 @@ export function Playground({
                             position: 'absolute',
                             top: 0,
                             left: 0,
-                            width: '100%',
-                            height: '100%',
+                            width: 1,
+                            height: 1,
                             pointerEvents: 'none',
                             overflow: 'visible'
                         }}>
@@ -1191,7 +1201,7 @@ export function Playground({
                     )}
 
                     {drawingMode && drawingMode.points.length > 0 && (
-                        <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 200 }}>
+                        <svg style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1, overflow: 'visible', pointerEvents: 'none', zIndex: 200 }}>
                             <polyline
                                 points={drawingMode.points.map(p => `${p.x},${p.y}`).join(' ')}
                                 fill="none"
@@ -1208,7 +1218,7 @@ export function Playground({
                     {/* Path Drawing Preview */}
                     {/* Path Drawing Preview */}
                     {pathDrawingMode && (
-                        <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 200 }}>
+                        <svg style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1, overflow: 'visible', pointerEvents: 'none', zIndex: 200 }}>
                             {/* Start Point (Green) */}
                             <circle
                                 cx={pathDrawingMode.points[0].x}
@@ -1315,106 +1325,258 @@ export function Playground({
                     </div>
                     <div style={{ height: '1px', background: 'rgba(148, 163, 184, 0.2)', margin: '4px 0' }} />
 
-                    {/* Drones */}
-                    <button
-                        onClick={() => addItemFromContextMenu('drone-air')}
-                        style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#e2e8f0',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            fontSize: '0.85rem'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    {/* Add Drone - with sidebar submenu */}
+                    <div
+                        style={{ position: 'relative' }}
+                        onMouseEnter={() => setShowDroneSubmenu(true)}
+                        onMouseLeave={() => setShowDroneSubmenu(false)}
                     >
-                        ✈️ Air Drone
-                    </button>
-                    <button
-                        onClick={() => addItemFromContextMenu('drone-ground')}
-                        style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#e2e8f0',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            fontSize: '0.85rem'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(139, 92, 246, 0.2)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                        🚛 Ground Drone
-                    </button>
+                        <button
+                            style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                background: showDroneSubmenu ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                                border: 'none',
+                                color: '#e2e8f0',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                fontSize: '0.85rem'
+                            }}
+                        >
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ color: '#60a5fa' }}>+</span> Add Drone
+                            </span>
+                            <span style={{ color: '#94a3b8' }}>▶</span>
+                        </button>
 
-                    <div style={{ height: '1px', background: 'rgba(148, 163, 184, 0.2)', margin: '4px 0' }} />
+                        {/* Drone Submenu */}
+                        {showDroneSubmenu && (
+                            <div style={{
+                                position: 'absolute',
+                                left: '100%',
+                                top: 0,
+                                marginLeft: '4px',
+                                background: 'rgba(15, 23, 42, 0.95)',
+                                border: '1px solid rgba(148, 163, 184, 0.3)',
+                                borderRadius: '8px',
+                                padding: '4px 0',
+                                minWidth: '150px',
+                                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)'
+                            }}>
+                                <button
+                                    onClick={() => addItemFromContextMenu('drone-air')}
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px 12px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: '#e2e8f0',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        fontSize: '0.85rem',
+                                        textAlign: 'left'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2">
+                                        <path d="M12 2L4 8v12h16V8l-8-6z" />
+                                        <path d="M12 22V12" />
+                                        <path d="M4 8l8 4 8-4" />
+                                    </svg>
+                                    Air Drone
+                                </button>
+                                <button
+                                    onClick={() => addItemFromContextMenu('drone-ground')}
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px 12px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: '#e2e8f0',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        fontSize: '0.85rem',
+                                        textAlign: 'left'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(139, 92, 246, 0.2)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2">
+                                        <rect x="2" y="6" width="20" height="12" rx="2" />
+                                        <circle cx="6" cy="18" r="2" />
+                                        <circle cx="18" cy="18" r="2" />
+                                    </svg>
+                                    Ground Drone
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
-                    {/* Objects */}
-                    <button
-                        onClick={() => addItemFromContextMenu('rectangle')}
-                        style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#e2e8f0',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            fontSize: '0.85rem'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(244, 114, 182, 0.2)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    {/* Add Object - with sidebar submenu */}
+                    <div
+                        style={{ position: 'relative' }}
+                        onMouseEnter={() => setShowObjectSubmenu(true)}
+                        onMouseLeave={() => setShowObjectSubmenu(false)}
                     >
-                        ⬜ Rectangle
-                    </button>
-                    <button
-                        onClick={() => addItemFromContextMenu('circle')}
-                        style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#e2e8f0',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            fontSize: '0.85rem'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(244, 114, 182, 0.2)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                        ⚪ Circle
-                    </button>
-                    <button
-                        onClick={() => addItemFromContextMenu('triangle')}
-                        style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#e2e8f0',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            fontSize: '0.85rem'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(244, 114, 182, 0.2)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                        🔺 Triangle
-                    </button>
+                        <button
+                            style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                background: showObjectSubmenu ? 'rgba(244, 114, 182, 0.2)' : 'transparent',
+                                border: 'none',
+                                color: '#e2e8f0',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                fontSize: '0.85rem'
+                            }}
+                        >
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ color: '#f472b6' }}>+</span> Add Object
+                            </span>
+                            <span style={{ color: '#94a3b8' }}>▶</span>
+                        </button>
+
+                        {/* Object Submenu */}
+                        {showObjectSubmenu && (
+                            <div style={{
+                                position: 'absolute',
+                                left: '100%',
+                                top: 0,
+                                marginLeft: '4px',
+                                background: 'rgba(15, 23, 42, 0.95)',
+                                border: '1px solid rgba(148, 163, 184, 0.3)',
+                                borderRadius: '8px',
+                                padding: '4px 0',
+                                minWidth: '140px',
+                                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)'
+                            }}>
+                                <button
+                                    onClick={() => addItemFromContextMenu('rectangle')}
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px 12px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: '#e2e8f0',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        fontSize: '0.85rem',
+                                        textAlign: 'left'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(244, 114, 182, 0.2)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#f472b6" strokeWidth="1.5">
+                                        <rect x="1" y="1" width="12" height="12" rx="1" />
+                                    </svg>
+                                    Rectangle
+                                </button>
+                                <button
+                                    onClick={() => addItemFromContextMenu('circle')}
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px 12px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: '#e2e8f0',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        fontSize: '0.85rem',
+                                        textAlign: 'left'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(244, 114, 182, 0.2)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#f472b6" strokeWidth="1.5">
+                                        <circle cx="7" cy="7" r="6" />
+                                    </svg>
+                                    Circle
+                                </button>
+                                <button
+                                    onClick={() => addItemFromContextMenu('triangle')}
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px 12px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: '#e2e8f0',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        fontSize: '0.85rem',
+                                        textAlign: 'left'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(244, 114, 182, 0.2)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#f472b6" strokeWidth="1.5">
+                                        <path d="M7 1L13 13H1L7 1Z" />
+                                    </svg>
+                                    Triangle
+                                </button>
+                                <button
+                                    onClick={() => addItemFromContextMenu('hexagon')}
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px 12px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: '#e2e8f0',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        fontSize: '0.85rem',
+                                        textAlign: 'left'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(244, 114, 182, 0.2)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#f472b6" strokeWidth="1.5">
+                                        <path d="M7 1L12.5 4V10L7 13L1.5 10V4L7 1Z" />
+                                    </svg>
+                                    Hexagon
+                                </button>
+                                <button
+                                    onClick={() => addItemFromContextMenu('star')}
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px 12px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: '#e2e8f0',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        fontSize: '0.85rem',
+                                        textAlign: 'left'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(244, 114, 182, 0.2)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#f472b6" strokeWidth="1.5">
+                                        <path d="M7 1L8.5 5.5H13L9.5 8.5L11 13L7 10L3 13L4.5 8.5L1 5.5H5.5L7 1Z" />
+                                    </svg>
+                                    Star
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
