@@ -445,37 +445,98 @@ function SceneContent({
                 const activeStates = states.filter(s => item.activeStates?.includes(s.id));
                 if (activeStates.length < 2) return [];
 
+                // Check if drone is locked to an object
+                const parentObject = item.lockedToObject ? items.find(i => i.id === item.lockedToObject) : null;
+                const offset = item.relativeOffset || { x: 0, y: 0, z: 0 };
+
                 const lines = [];
 
                 // Generate path for each state transition
                 for (let i = 0; i < activeStates.length - 1; i++) {
                     const fromState = activeStates[i];
                     const toState = activeStates[i + 1];
-                    const toPos = item.statePositions?.[toState.id];
 
-                    // Check for customPath on the destination position
-                    if (toPos?.customPath && toPos.customPath.length > 1) {
-                        // Use the 3D waypoints from customPath
-                        const points = toPos.customPath.map(p =>
-                            new THREE.Vector3(p.x, p.z || 0, p.y) // 2D Y -> 3D Z, 2D Z -> 3D Y (up)
-                        );
-                        lines.push({
-                            id: `${item.id}-${fromState.id}-${toState.id}`,
-                            points,
-                            color: item.droneType === 'ground' ? '#8b5cf6' : '#60a5fa'
-                        });
-                    } else {
-                        // Direct path between states
-                        const fromPos = item.statePositions?.[fromState.id];
-                        if (fromPos && toPos) {
+                    // If locked to object, use object's path with offset applied
+                    if (parentObject) {
+                        const pathKey = `${fromState.id}_to_${toState.id}`;
+                        const objectPath = parentObject.customTransitionPaths?.[pathKey];
+
+                        if (objectPath && objectPath.length > 1) {
+                            // Apply drone offset to each point on object's path
+                            const parentRot = parentObject.statePositions?.[fromState.id]?.rotation || 0;
+                            const angleRad = parentRot * (Math.PI / 180);
+                            const rotatedX = offset.x * Math.cos(angleRad) - offset.y * Math.sin(angleRad);
+                            const rotatedY = offset.x * Math.sin(angleRad) + offset.y * Math.cos(angleRad);
+
+                            // Get drone's Z from its own state
+                            const droneFromZ = item.statePositions?.[fromState.id]?.z || 0;
+                            const droneToZ = item.statePositions?.[toState.id]?.z || 0;
+
+                            const points = objectPath.map((p, idx) => {
+                                // Interpolate drone Z along the path
+                                const t = idx / (objectPath.length - 1);
+                                const z = droneFromZ + (droneToZ - droneFromZ) * t;
+                                return new THREE.Vector3(p.x + rotatedX, z, p.y + rotatedY);
+                            });
+
                             lines.push({
                                 id: `${item.id}-${fromState.id}-${toState.id}`,
-                                points: [
-                                    new THREE.Vector3(fromPos.x, fromPos.z || 0, fromPos.y),
-                                    new THREE.Vector3(toPos.x, toPos.z || 0, toPos.y)
-                                ],
+                                points,
                                 color: item.droneType === 'ground' ? '#8b5cf6' : '#60a5fa'
                             });
+                        } else {
+                            // Object has no custom path, use straight line with offset
+                            const fromObjPos = parentObject.statePositions?.[fromState.id];
+                            const toObjPos = parentObject.statePositions?.[toState.id];
+                            if (fromObjPos && toObjPos) {
+                                const fromAngle = (fromObjPos.rotation || 0) * (Math.PI / 180);
+                                const toAngle = (toObjPos.rotation || 0) * (Math.PI / 180);
+                                const droneFromZ = item.statePositions?.[fromState.id]?.z || 0;
+                                const droneToZ = item.statePositions?.[toState.id]?.z || 0;
+
+                                lines.push({
+                                    id: `${item.id}-${fromState.id}-${toState.id}`,
+                                    points: [
+                                        new THREE.Vector3(
+                                            fromObjPos.x + offset.x * Math.cos(fromAngle) - offset.y * Math.sin(fromAngle),
+                                            droneFromZ,
+                                            fromObjPos.y + offset.x * Math.sin(fromAngle) + offset.y * Math.cos(fromAngle)
+                                        ),
+                                        new THREE.Vector3(
+                                            toObjPos.x + offset.x * Math.cos(toAngle) - offset.y * Math.sin(toAngle),
+                                            droneToZ,
+                                            toObjPos.y + offset.x * Math.sin(toAngle) + offset.y * Math.cos(toAngle)
+                                        )
+                                    ],
+                                    color: item.droneType === 'ground' ? '#8b5cf6' : '#60a5fa'
+                                });
+                            }
+                        }
+                    } else {
+                        // Not locked - use drone's own customPath
+                        const toPos = item.statePositions?.[toState.id];
+
+                        if (toPos?.customPath && toPos.customPath.length > 1) {
+                            const points = toPos.customPath.map(p =>
+                                new THREE.Vector3(p.x, p.z || 0, p.y)
+                            );
+                            lines.push({
+                                id: `${item.id}-${fromState.id}-${toState.id}`,
+                                points,
+                                color: item.droneType === 'ground' ? '#8b5cf6' : '#60a5fa'
+                            });
+                        } else {
+                            const fromPos = item.statePositions?.[fromState.id];
+                            if (fromPos && toPos) {
+                                lines.push({
+                                    id: `${item.id}-${fromState.id}-${toState.id}`,
+                                    points: [
+                                        new THREE.Vector3(fromPos.x, fromPos.z || 0, fromPos.y),
+                                        new THREE.Vector3(toPos.x, toPos.z || 0, toPos.y)
+                                    ],
+                                    color: item.droneType === 'ground' ? '#8b5cf6' : '#60a5fa'
+                                });
+                            }
                         }
                     }
                 }
@@ -483,7 +544,7 @@ function SceneContent({
                 return lines;
             })
             .filter(Boolean);
-    }, [visibleItems, states, showDronePaths]);
+    }, [visibleItems, states, showDronePaths, items]);
 
     return (
         <group>

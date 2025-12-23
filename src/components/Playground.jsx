@@ -839,30 +839,75 @@ export function Playground({
 
                                 if (activeStates.length < 2) return null;
 
-                                // Build path segments from customPath in statePositions
+                                // Check if drone is locked to an object
+                                const parentObject = item.lockedToObject ? items.find(i => i.id === item.lockedToObject) : null;
+                                const offset = item.relativeOffset || { x: 0, y: 0 };
+
+                                // Build path segments
                                 const pathSegments = [];
                                 for (let i = 0; i < activeStates.length - 1; i++) {
                                     const fromState = activeStates[i];
                                     const toState = activeStates[i + 1];
-                                    const toStatePos = item.statePositions?.[toState.id];
-                                    const customPath = toStatePos?.customPath;
 
-                                    if (customPath && customPath.length > 1) {
-                                        // Use custom path points
-                                        pathSegments.push(...customPath.map((p, j) => ({
-                                            x: p.x,
-                                            y: p.y,
-                                            isFirst: i === 0 && j === 0
-                                        })));
-                                    } else {
-                                        // Use straight line between states
-                                        const fromPos = item.statePositions?.[fromState.id];
-                                        const toPos = item.statePositions?.[toState.id];
-                                        if (fromPos && toPos) {
-                                            if (i === 0) {
-                                                pathSegments.push({ x: fromPos.x, y: fromPos.y, isFirst: true });
+                                    // If locked to object, use object's path with offset applied
+                                    if (parentObject) {
+                                        const pathKey = `${fromState.id}_to_${toState.id}`;
+                                        const objectPath = parentObject.customTransitionPaths?.[pathKey];
+
+                                        if (objectPath && objectPath.length > 1) {
+                                            // Apply drone offset to each point on object's path
+                                            pathSegments.push(...objectPath.map((p, j) => {
+                                                const parentRot = parentObject.statePositions?.[fromState.id]?.rotation || 0;
+                                                const angleRad = parentRot * (Math.PI / 180);
+                                                const rotatedX = offset.x * Math.cos(angleRad) - offset.y * Math.sin(angleRad);
+                                                const rotatedY = offset.x * Math.sin(angleRad) + offset.y * Math.cos(angleRad);
+                                                return {
+                                                    x: p.x + rotatedX,
+                                                    y: p.y + rotatedY,
+                                                    isFirst: i === 0 && j === 0
+                                                };
+                                            }));
+                                        } else {
+                                            // Object has no custom path, use straight line with offset
+                                            const fromObjPos = parentObject.statePositions?.[fromState.id];
+                                            const toObjPos = parentObject.statePositions?.[toState.id];
+                                            if (fromObjPos && toObjPos) {
+                                                const fromAngle = (fromObjPos.rotation || 0) * (Math.PI / 180);
+                                                const toAngle = (toObjPos.rotation || 0) * (Math.PI / 180);
+                                                if (i === 0) {
+                                                    pathSegments.push({
+                                                        x: fromObjPos.x + offset.x * Math.cos(fromAngle) - offset.y * Math.sin(fromAngle),
+                                                        y: fromObjPos.y + offset.x * Math.sin(fromAngle) + offset.y * Math.cos(fromAngle),
+                                                        isFirst: true
+                                                    });
+                                                }
+                                                pathSegments.push({
+                                                    x: toObjPos.x + offset.x * Math.cos(toAngle) - offset.y * Math.sin(toAngle),
+                                                    y: toObjPos.y + offset.x * Math.sin(toAngle) + offset.y * Math.cos(toAngle),
+                                                    isFirst: false
+                                                });
                                             }
-                                            pathSegments.push({ x: toPos.x, y: toPos.y, isFirst: false });
+                                        }
+                                    } else {
+                                        // Not locked - use drone's own customPath
+                                        const toStatePos = item.statePositions?.[toState.id];
+                                        const customPath = toStatePos?.customPath;
+
+                                        if (customPath && customPath.length > 1) {
+                                            pathSegments.push(...customPath.map((p, j) => ({
+                                                x: p.x,
+                                                y: p.y,
+                                                isFirst: i === 0 && j === 0
+                                            })));
+                                        } else {
+                                            const fromPos = item.statePositions?.[fromState.id];
+                                            const toPos = item.statePositions?.[toState.id];
+                                            if (fromPos && toPos) {
+                                                if (i === 0) {
+                                                    pathSegments.push({ x: fromPos.x, y: fromPos.y, isFirst: true });
+                                                }
+                                                pathSegments.push({ x: toPos.x, y: toPos.y, isFirst: false });
+                                            }
                                         }
                                     }
                                 }
