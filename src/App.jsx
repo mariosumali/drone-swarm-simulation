@@ -456,6 +456,12 @@ function App() {
             return item;
         }));
 
+        // If the object has assigned drones, recalculate their paths
+        const object = items.find(i => i.id === objectId);
+        if (object && object.assignedDrones && object.assignedDrones.length > 0 && object.type !== 'drone') {
+            setTimeout(() => recalculateDronePaths(objectId), 0);
+        }
+
         setPathDrawingMode(null);
     };
 
@@ -514,6 +520,11 @@ function App() {
             }
             return item;
         }));
+
+        // If the object has assigned drones, recalculate their paths
+        if (object.assignedDrones && object.assignedDrones.length > 0 && object.type !== 'drone') {
+            setTimeout(() => recalculateDronePaths(objectId), 0);
+        }
     };
 
     const updateItem = (id, updates) => {
@@ -818,16 +829,18 @@ function App() {
 
     // Recalculate a single drone's paths when it's moved directly
     const recalculateSingleDronePath = async (droneId) => {
-        const { findPath } = await import('./utils/pathfinding');
+        const { findPath, findPath3D } = await import('./utils/pathfinding');
 
         const drone = items.find(i => i.id === droneId);
         if (!drone || drone.type !== 'drone') return;
 
-        // Get obstacles (all non-drone objects)
+        // Get obstacles (only objects marked as obstacles)
         const obstacles = items.filter(i =>
             i.type !== 'drone' &&
-            i.isObstacle !== false
+            i.isObstacle === true
         );
+
+        const isAirDrone = drone.droneType === 'air';
 
         setItems(prev => prev.map(item => {
             if (item.id !== droneId) return item;
@@ -847,7 +860,19 @@ function App() {
                                 ...obs,
                                 _checkStateId: prevStateId
                             }));
-                            const autoPath = findPath(prevPos, statePos, obstaclesForState, prevStateId);
+
+                            let autoPath;
+                            if (isAirDrone) {
+                                autoPath = findPath3D(
+                                    { x: prevPos.x, y: prevPos.y, z: prevPos.z || 0 },
+                                    { x: statePos.x, y: statePos.y, z: statePos.z || 0 },
+                                    obstaclesForState,
+                                    prevStateId
+                                );
+                            } else {
+                                autoPath = findPath(prevPos, statePos, obstaclesForState, prevStateId);
+                            }
+
                             newStatePositions[stateId] = {
                                 ...statePos,
                                 customPath: autoPath
@@ -863,27 +888,29 @@ function App() {
 
     // Recalculate drone paths when object moves (for drones with pathType === 'auto')
     const recalculateDronePaths = async (objectId) => {
-        const { findPath } = await import('./utils/pathfinding');
+        const { findPath, findPath3D } = await import('./utils/pathfinding');
 
         const object = items.find(i => i.id === objectId);
         if (!object || !object.assignedDrones || object.assignedDrones.length === 0) return;
 
-        // Get obstacles for pathfinding (without pre-setting _checkStateId)
+        // Get obstacles for pathfinding (only objects marked as obstacles)
         const obstacles = items.filter(i =>
             i.type !== 'drone' &&
             i.id !== objectId &&
-            i.isObstacle !== false
+            i.isObstacle === true
         );
 
         setItems(prev => prev.map(item => {
             if (!object.assignedDrones.includes(item.id)) return item;
 
-            // For each state transition with pathType 'auto', recalculate path
+            // For each state transition, recalculate path (auto paths or when parent moves)
             const newStatePositions = { ...item.statePositions };
+            const isAirDrone = item.droneType === 'air';
 
             for (const stateId of Object.keys(newStatePositions)) {
                 const statePos = newStatePositions[stateId];
-                if (statePos?.pathType === 'auto') {
+                // Recalculate paths that were auto-generated (or have pathType set)
+                if (statePos?.pathType === 'auto' || statePos?.customPath) {
                     // Find the previous state
                     const stateIndex = states.findIndex(s => s.id === stateId);
                     if (stateIndex > 0) {
@@ -895,7 +922,21 @@ function App() {
                                 ...obs,
                                 _checkStateId: prevStateId
                             }));
-                            const autoPath = findPath(prevPos, statePos, obstaclesForState, prevStateId);
+
+                            let autoPath;
+                            if (isAirDrone) {
+                                // Use 3D pathfinding for air drones
+                                autoPath = findPath3D(
+                                    { x: prevPos.x, y: prevPos.y, z: prevPos.z || 0 },
+                                    { x: statePos.x, y: statePos.y, z: statePos.z || 0 },
+                                    obstaclesForState,
+                                    prevStateId
+                                );
+                            } else {
+                                // Use 2D pathfinding for ground drones
+                                autoPath = findPath(prevPos, statePos, obstaclesForState, prevStateId);
+                            }
+
                             newStatePositions[stateId] = {
                                 ...statePos,
                                 customPath: autoPath
@@ -952,11 +993,11 @@ function App() {
             ...prev.slice(currentIndex + 1)
         ]);
 
-        // Get obstacles for pathfinding (exclude drones and the target object)
+        // Get obstacles for pathfinding (only objects marked as obstacles)
         const obstacles = items.filter(i =>
             i.type !== 'drone' &&
             i.id !== objectId &&
-            i.isObstacle !== false
+            i.isObstacle === true
         ).map(obs => ({
             ...obs,
             _checkStateId: currentStateId
@@ -1075,11 +1116,11 @@ function App() {
             ...prev.slice(currentIndex + 1)
         ]);
 
-        // Get obstacles for pathfinding (exclude drones and the target object)
+        // Get obstacles for pathfinding (only objects marked as obstacles)
         const obstacles = items.filter(i =>
             i.type !== 'drone' &&
             i.id !== objectId &&
-            i.isObstacle !== false
+            i.isObstacle === true
         ).map(obs => ({
             ...obs,
             _checkStateId: currentStateId

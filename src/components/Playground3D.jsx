@@ -73,10 +73,65 @@ function SceneContent({
             return [pos.x, pos.z || 0, pos.y];
         }
 
-        // Check for custom path in nextPos (new format)
+        // Drone locked to object - follow parent position (same as 2D)
+        if (item.type === 'drone' && item.lockedToObject) {
+            const parentObj = items.find(i => i.id === item.lockedToObject);
+            if (parentObj) {
+                // Check if the drone is actually "in formation" in the current state
+                const droneStoredPos = item.statePositions?.[currentStateId];
+                const parentStoredPos = parentObj.statePositions?.[currentStateId];
+
+                let isInFormation = true;
+
+                if (droneStoredPos && parentStoredPos) {
+                    const offset = item.relativeOffset || { x: 0, y: 0 };
+                    const angleRad = (parentStoredPos.rotation || 0) * (Math.PI / 180);
+                    const expectedX = parentStoredPos.x + (offset.x * Math.cos(angleRad) - offset.y * Math.sin(angleRad));
+                    const expectedY = parentStoredPos.y + (offset.x * Math.sin(angleRad) + offset.y * Math.cos(angleRad));
+
+                    const dist = Math.hypot(droneStoredPos.x - expectedX, droneStoredPos.y - expectedY);
+                    // Allow 5px tolerance
+                    if (dist > 5) {
+                        isInFormation = false;
+                    }
+                }
+
+                if (isInFormation) {
+                    // Get parent's interpolated position (recursive call for parent)
+                    const parentPos3D = getItemPosition(parentObj);
+                    const offset = item.relativeOffset || { x: 0, y: 0, z: 0 };
+
+                    // Need rotation from parent's interpolated state
+                    const parentCurrentRot = parentObj.statePositions?.[currentState?.id]?.rotation || 0;
+                    const parentNextRot = parentObj.statePositions?.[nextState?.id]?.rotation || 0;
+                    const easing = EASING_FUNCTIONS[settings.easing] || EASING_FUNCTIONS.linear;
+                    const t = easing(animationProgress);
+                    const parentRot = interpolate(parentCurrentRot, parentNextRot, t);
+
+                    const angleRad = parentRot * (Math.PI / 180);
+                    const rotatedX = offset.x * Math.cos(angleRad) - offset.y * Math.sin(angleRad);
+                    const rotatedY = offset.x * Math.sin(angleRad) + offset.y * Math.cos(angleRad);
+
+                    // Drone Z is from its own state (object top + small offset)
+                    const droneZ = interpolate(currentPos.z || 0, nextPos.z || 0, t);
+
+                    // parentPos3D is [x, z, y] in 3D coords
+                    return [
+                        parentPos3D[0] + rotatedX,
+                        droneZ,
+                        parentPos3D[2] + rotatedY
+                    ];
+                }
+            }
+        }
+
+        // Check for custom path in nextPos (new format) - may have 3D coordinates
         if (nextPos.customPath && nextPos.customPath.length > 1) {
             const result = interpolateAlongPath(nextPos.customPath, animationProgress, settings.easing);
-            const z = interpolate(currentPos.z || 0, nextPos.z || 0, animationProgress);
+            // Use Z from path if available (3D path), otherwise interpolate between state Z values
+            const z = result.z !== undefined
+                ? result.z
+                : interpolate(currentPos.z || 0, nextPos.z || 0, animationProgress);
             return [result.x, z, result.y];
         }
 
@@ -87,7 +142,10 @@ function SceneContent({
 
             if (customPath && customPath.length > 1) {
                 const result = interpolateAlongPath(customPath, animationProgress, settings.easing);
-                const z = interpolate(currentPos.z || 0, nextPos.z || 0, animationProgress);
+                // Use Z from path if available (3D path), otherwise interpolate between state Z values
+                const z = result.z !== undefined
+                    ? result.z
+                    : interpolate(currentPos.z || 0, nextPos.z || 0, animationProgress);
                 return [result.x, z, result.y];
             }
         }
@@ -101,7 +159,7 @@ function SceneContent({
             interpolate(currentPos.z || 0, nextPos.z || 0, t),
             interpolate(currentPos.y, nextPos.y, t)
         ];
-    }, [isSimulating, currentStateId, states, animationProgress, settings.easing]);
+    }, [isSimulating, currentStateId, states, animationProgress, settings.easing, items]);
 
     // Handle item click
     const handleItemClick = useCallback((e, item) => {
@@ -377,29 +435,52 @@ function SceneContent({
         [items, currentStateId]
     );
 
-    // Generate path lines
+    // Generate path lines - use customPath waypoints for 3D visualization
     const pathLines = useMemo(() => {
         if (!showDronePaths) return [];
 
         return visibleItems
             .filter(item => item.type === 'drone')
-            .map(item => {
+            .flatMap(item => {
                 const activeStates = states.filter(s => item.activeStates?.includes(s.id));
-                if (activeStates.length < 2) return null;
+                if (activeStates.length < 2) return [];
 
-                const points = [];
-                activeStates.forEach(state => {
-                    const pos = item.statePositions?.[state.id];
-                    if (pos) {
-                        points.push(new THREE.Vector3(pos.x, pos.z || 0, pos.y)); // 2D Y -> 3D Z
+                const lines = [];
+
+                // Generate path for each state transition
+                for (let i = 0; i < activeStates.length - 1; i++) {
+                    const fromState = activeStates[i];
+                    const toState = activeStates[i + 1];
+                    const toPos = item.statePositions?.[toState.id];
+
+                    // Check for customPath on the destination position
+                    if (toPos?.customPath && toPos.customPath.length > 1) {
+                        // Use the 3D waypoints from customPath
+                        const points = toPos.customPath.map(p =>
+                            new THREE.Vector3(p.x, p.z || 0, p.y) // 2D Y -> 3D Z, 2D Z -> 3D Y (up)
+                        );
+                        lines.push({
+                            id: `${item.id}-${fromState.id}-${toState.id}`,
+                            points,
+                            color: item.droneType === 'ground' ? '#8b5cf6' : '#60a5fa'
+                        });
+                    } else {
+                        // Direct path between states
+                        const fromPos = item.statePositions?.[fromState.id];
+                        if (fromPos && toPos) {
+                            lines.push({
+                                id: `${item.id}-${fromState.id}-${toState.id}`,
+                                points: [
+                                    new THREE.Vector3(fromPos.x, fromPos.z || 0, fromPos.y),
+                                    new THREE.Vector3(toPos.x, toPos.z || 0, toPos.y)
+                                ],
+                                color: item.droneType === 'ground' ? '#8b5cf6' : '#60a5fa'
+                            });
+                        }
                     }
-                });
+                }
 
-                return {
-                    id: item.id,
-                    points,
-                    color: item.droneType === 'ground' ? '#8b5cf6' : '#60a5fa'
-                };
+                return lines;
             })
             .filter(Boolean);
     }, [visibleItems, states, showDronePaths]);
@@ -458,6 +539,7 @@ function SceneContent({
                         data={item}
                         position={pos}
                         rotation={rotation}
+                        currentStateId={currentStateId}
                         selected={selectedIds.has(item.id)}
                         onClick={(e) => handleItemClick(e, item)}
                         onPointerDown={(e) => handlePointerDown(e, item)}

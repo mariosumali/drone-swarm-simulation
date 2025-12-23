@@ -1000,6 +1000,49 @@ export function Playground({
                                         />
                                     )}
 
+                                    {/* Flying Indicator - 2D mode (show glow and altitude when drone is flying) */}
+                                    {!show3DMode && item.type === 'drone' && (pos.z || 0) > 0 && (
+                                        <>
+                                            {/* Glow effect for flying drones */}
+                                            <div
+                                                style={{
+                                                    position: 'absolute',
+                                                    top: '50%',
+                                                    left: '50%',
+                                                    width: '30px',
+                                                    height: '30px',
+                                                    background: item.droneType === 'air' ? 'rgba(96, 165, 250, 0.4)' : 'rgba(139, 92, 246, 0.4)',
+                                                    borderRadius: '50%',
+                                                    transform: 'translate(-50%, -50%)',
+                                                    filter: 'blur(8px)',
+                                                    zIndex: -1,
+                                                    pointerEvents: 'none',
+                                                    animation: 'pulse 1.5s infinite'
+                                                }}
+                                            />
+                                            {/* Altitude badge */}
+                                            <div
+                                                style={{
+                                                    position: 'absolute',
+                                                    bottom: '-20px',
+                                                    left: '50%',
+                                                    transform: 'translateX(-50%)',
+                                                    background: item.droneType === 'air' ? '#60a5fa' : '#8b5cf6',
+                                                    color: 'white',
+                                                    fontSize: '9px',
+                                                    fontWeight: 700,
+                                                    padding: '1px 4px',
+                                                    borderRadius: '3px',
+                                                    whiteSpace: 'nowrap',
+                                                    zIndex: 100,
+                                                    pointerEvents: 'none'
+                                                }}
+                                            >
+                                                Z:{Math.round(pos.z)}
+                                            </div>
+                                        </>
+                                    )}
+
                                     {/* Shadow for 3D Mode */}
                                     {show3DMode && (pos.z > 0) && (
                                         <div
