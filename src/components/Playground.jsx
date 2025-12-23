@@ -613,7 +613,7 @@ export function Playground({
             onContextMenu={handleContextMenu}
             className="w-full h-full relative bg-gray-900 border border-gray-700 rounded-lg overflow-hidden select-none"
             tabIndex={0}
-            style={{ outline: 'none' }}
+            style={{ outline: 'none', backgroundColor: 'var(--bg-primary)' }}
         >
             <div
                 ref={contentRef}
