@@ -539,6 +539,11 @@ function App() {
                     setTimeout(() => recalculateSingleDronePath(id), 0);
                 }
 
+                // If non-drone object position changed, auto-generate obstacle-avoiding path
+                if (!isDrone && positionChanged) {
+                    setTimeout(() => recalculateObjectPath(id), 0);
+                }
+
                 // Check if this is an object with locked drones
                 const isObjectWithLockedDrones = item.formationLocked && item.assignedDrones?.length > 0;
 
@@ -824,6 +829,47 @@ function App() {
             setIsSimulating(false);
         } else {
             startSimulation();
+        }
+    };
+
+    // Recalculate an object's transition paths when it's moved (auto obstacle avoidance)
+    const recalculateObjectPath = async (objectId) => {
+        const { generateAutoPath } = await import('./utils/pathfinding');
+
+        const object = items.find(i => i.id === objectId);
+        if (!object || object.type === 'drone') return;
+
+        // Only recalculate if object has multiple active states
+        const activeStates = states.filter(s => object.activeStates?.includes(s.id));
+        if (activeStates.length < 2) return;
+
+        setItems(prev => prev.map(item => {
+            if (item.id !== objectId) return item;
+
+            const newPaths = { ...(item.customTransitionPaths || {}) };
+
+            // Generate paths for each state transition
+            for (let i = 0; i < activeStates.length - 1; i++) {
+                const fromState = activeStates[i];
+                const toState = activeStates[i + 1];
+                const pathKey = `${fromState.id}_to_${toState.id}`;
+
+                // Generate obstacle-avoiding path from current items state
+                const path = generateAutoPath(item, fromState.id, toState.id, prev);
+                if (path && path.length >= 2) {
+                    newPaths[pathKey] = path;
+                }
+            }
+
+            return {
+                ...item,
+                customTransitionPaths: newPaths
+            };
+        }));
+
+        // If the object has assigned drones, recalculate their paths too
+        if (object.assignedDrones && object.assignedDrones.length > 0) {
+            setTimeout(() => recalculateDronePaths(objectId), 0);
         }
     };
 
