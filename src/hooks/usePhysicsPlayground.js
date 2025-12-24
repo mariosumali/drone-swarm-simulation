@@ -50,6 +50,73 @@ export function usePhysicsPlayground(canvasRef, containerRef) {
         isStatic: false
     });
 
+    // Drones with injectable behavior
+    const [drones, setDrones] = useState([]);
+    const dronesRef = useRef([]);
+
+    // Keep dronesRef in sync with drones state
+    useEffect(() => {
+        dronesRef.current = drones;
+    }, [drones]);
+
+    // Built-in behavior templates
+    const BEHAVIOR_TEMPLATES = {
+        wander: `// Wander randomly
+const angle = Math.random() * Math.PI * 2;
+const force = 0.0005;
+this.applyForce(Math.cos(angle) * force, Math.sin(angle) * force);`,
+
+        seekNearest: `// Seek nearest object
+if (this.nearbyBodies.length > 0) {
+    const nearest = this.nearbyBodies[0];
+    const dx = nearest.position.x - this.position.x;
+    const dy = nearest.position.y - this.position.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > 10) {
+        this.applyForce(dx/dist * 0.001, dy/dist * 0.001);
+    }
+}`,
+
+        avoidAll: `// Avoid all nearby objects
+this.nearbyBodies.forEach(body => {
+    const dx = this.position.x - body.position.x;
+    const dy = this.position.y - body.position.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < 100 && dist > 0) {
+        this.applyForce(dx/dist * 0.0005, dy/dist * 0.0005);
+    }
+});`,
+
+        followMouse: `// Follow mouse position (if available)
+if (this.mousePosition) {
+    const dx = this.mousePosition.x - this.position.x;
+    const dy = this.mousePosition.y - this.position.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > 20) {
+        this.applyForce(dx/dist * 0.001, dy/dist * 0.001);
+    }
+}`,
+
+        swarm: `// Swarm behavior (separation + cohesion)
+let sepX = 0, sepY = 0, cohX = 0, cohY = 0, count = 0;
+this.allDrones.forEach(other => {
+    if (other.id !== this.id) {
+        const dx = this.position.x - other.position.x;
+        const dy = this.position.y - other.position.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < 50 && dist > 0) {
+            sepX += dx/dist; sepY += dy/dist;
+        }
+        cohX += other.position.x; cohY += other.position.y; count++;
+    }
+});
+if (count > 0) {
+    cohX = cohX/count - this.position.x;
+    cohY = cohY/count - this.position.y;
+}
+this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);`
+    };
+
     // Initialize physics engine
     useEffect(() => {
         const container = containerRef?.current;
@@ -157,6 +224,66 @@ export function usePhysicsPlayground(canvasRef, containerRef) {
                     if (pos.x > width) Matter.Body.setPosition(body, { x: width - 50, y: pos.y });
                     if (pos.y < 0) Matter.Body.setPosition(body, { x: pos.x, y: 50 });
                     if (pos.y > height) Matter.Body.setPosition(body, { x: pos.x, y: height - 50 });
+                }
+            });
+        });
+
+        // Run drone behaviors each tick
+        Matter.Events.on(engine, 'beforeUpdate', () => {
+            const currentDrones = dronesRef.current;
+            if (currentDrones.length === 0) return;
+
+            const allBodies = Matter.Composite.allBodies(engine.world);
+            const nonDroneBodies = allBodies.filter(b => !b.isStatic && !b.isDrone);
+            const mousePos = render.mouse?.position;
+
+            currentDrones.forEach(drone => {
+                if (!drone.body || !drone.behaviorCode) return;
+
+                // Create API context for behavior code
+                const context = {
+                    id: drone.body.id,
+                    position: { x: drone.body.position.x, y: drone.body.position.y },
+                    velocity: { x: drone.body.velocity.x, y: drone.body.velocity.y },
+                    angle: drone.body.angle,
+                    nearbyBodies: nonDroneBodies
+                        .filter(b => {
+                            const dx = b.position.x - drone.body.position.x;
+                            const dy = b.position.y - drone.body.position.y;
+                            return Math.sqrt(dx * dx + dy * dy) < 200;
+                        })
+                        .sort((a, b) => {
+                            const da = Math.hypot(a.position.x - drone.body.position.x, a.position.y - drone.body.position.y);
+                            const db = Math.hypot(b.position.x - drone.body.position.x, b.position.y - drone.body.position.y);
+                            return da - db;
+                        }),
+                    allDrones: currentDrones.map(d => ({
+                        id: d.body.id,
+                        position: { x: d.body.position.x, y: d.body.position.y },
+                        velocity: { x: d.body.velocity.x, y: d.body.velocity.y }
+                    })),
+                    mousePosition: mousePos ? { x: mousePos.x, y: mousePos.y } : null,
+
+                    applyForce: (fx, fy) => {
+                        Matter.Body.applyForce(drone.body, drone.body.position, { x: fx, y: fy });
+                    },
+                    setVelocity: (vx, vy) => {
+                        Matter.Body.setVelocity(drone.body, { x: vx, y: vy });
+                    },
+                    distanceTo: (other) => {
+                        if (!other?.position) return Infinity;
+                        const dx = other.position.x - drone.body.position.x;
+                        const dy = other.position.y - drone.body.position.y;
+                        return Math.sqrt(dx * dx + dy * dy);
+                    }
+                };
+
+                // Execute behavior code
+                try {
+                    const behaviorFn = new Function(drone.behaviorCode);
+                    behaviorFn.call(context);
+                } catch (e) {
+                    // Silently ignore behavior errors to avoid spam
                 }
             });
         });
@@ -307,6 +434,65 @@ export function usePhysicsPlayground(canvasRef, containerRef) {
 
         return body;
     }, [bodyDefaults, renderOptions.wireframes]);
+
+    // Add a drone with injectable behavior code
+    const addDrone = useCallback((x, y, behaviorCode = null, options = {}) => {
+        if (!engineRef.current) return null;
+
+        // Default to wander behavior if no code provided
+        const code = behaviorCode || BEHAVIOR_TEMPLATES.wander;
+
+        // Drone-specific styling
+        const droneColor = options.color || '#00ff88';
+        const droneSize = options.size || 15;
+
+        const body = Matter.Bodies.circle(x, y, droneSize, {
+            density: 0.002,
+            friction: 0.05,
+            frictionAir: 0.02,
+            restitution: 0.3,
+            render: {
+                fillStyle: renderOptions.wireframes ? 'transparent' : droneColor,
+                strokeStyle: droneColor,
+                lineWidth: 3
+            },
+            label: `drone_${Date.now()}`
+        });
+
+        // Mark as drone for filtering
+        body.isDrone = true;
+
+        if (body) {
+            Matter.Composite.add(engineRef.current.world, body);
+
+            const droneData = {
+                id: body.id,
+                type: 'drone',
+                body,
+                behaviorCode: code,
+                color: droneColor
+            };
+
+            setDrones(prev => [...prev, droneData]);
+            setObjects(prev => [...prev, { id: body.id, type: 'drone', body }]);
+        }
+
+        return body;
+    }, [renderOptions.wireframes, BEHAVIOR_TEMPLATES]);
+
+    // Update a drone's behavior code
+    const updateDroneBehavior = useCallback((droneId, newBehaviorCode) => {
+        setDrones(prev => prev.map(drone =>
+            drone.id === droneId
+                ? { ...drone, behaviorCode: newBehaviorCode }
+                : drone
+        ));
+    }, []);
+
+    // Get drone info including behavior code
+    const getDroneInfo = useCallback((droneId) => {
+        return drones.find(d => d.id === droneId) || null;
+    }, [drones]);
 
     // Add multiple random objects
     const addRandomObjects = useCallback((count = 5) => {
@@ -503,12 +689,14 @@ export function usePhysicsPlayground(canvasRef, containerRef) {
 
     return {
         objects,
+        drones,
         gravity,
         renderOptions,
         bodyDefaults,
         isRunning: isInitialized,
         selectedBodyId,
         addObject,
+        addDrone,
         addCustomObject,
         addRandomObjects,
         removeObject,
@@ -521,7 +709,10 @@ export function usePhysicsPlayground(canvasRef, containerRef) {
         getBodiesInfo,
         getBodyProperties,
         updateBodyProperty,
+        updateDroneBehavior,
+        getDroneInfo,
         selectBody,
+        BEHAVIOR_TEMPLATES,
         engine: engineRef.current,
         render: renderRef.current
     };

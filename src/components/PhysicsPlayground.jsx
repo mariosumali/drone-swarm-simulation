@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { usePhysicsPlayground } from '../hooks/usePhysicsPlayground';
-import { Square, Circle, Triangle, Hexagon, Star, Pentagon, Trash2, Plus, Pencil, Settings, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { Square, Circle, Triangle, Hexagon, Star, Pentagon, Trash2, Plus, Pencil, Settings, ChevronDown, ChevronRight, X, Bot, Code2 } from 'lucide-react';
 
 // Collapsible section component
 function Section({ title, defaultOpen = true, children }) {
@@ -97,15 +97,19 @@ export function PhysicsPlayground({ theme = 'dark' }) {
     const [drawingMode, setDrawingMode] = useState(false);
     const [drawingPoints, setDrawingPoints] = useState([]);
     const [bodyProps, setBodyProps] = useState(null);
+    const [showCodeEditor, setShowCodeEditor] = useState(false);
+    const [editingCode, setEditingCode] = useState('');
 
     const {
         objects,
+        drones,
         gravity,
         renderOptions,
         bodyDefaults,
         isRunning,
         selectedBodyId,
         addObject,
+        addDrone,
         addCustomObject,
         addRandomObjects,
         removeObject,
@@ -116,7 +120,10 @@ export function PhysicsPlayground({ theme = 'dark' }) {
         setBodyDefault,
         selectBody,
         getBodyProperties,
-        updateBodyProperty
+        updateBodyProperty,
+        updateDroneBehavior,
+        getDroneInfo,
+        BEHAVIOR_TEMPLATES
     } = usePhysicsPlayground(null, containerRef);
 
     // Update properties panel when selection changes
@@ -275,6 +282,34 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                         }}
                     >
                         <Pencil size={12} /> Draw Custom
+                    </button>
+
+                    {/* Add Drone button */}
+                    <button
+                        onClick={() => {
+                            if (containerRef.current) {
+                                const rect = containerRef.current.getBoundingClientRect();
+                                addDrone(rect.width / 2, rect.height / 2);
+                            }
+                        }}
+                        style={{
+                            width: '100%',
+                            marginTop: '0.3rem',
+                            padding: '0.5rem',
+                            background: 'linear-gradient(135deg, #00ff88, #00cc66)',
+                            border: 'none',
+                            borderRadius: '4px',
+                            color: '#000',
+                            fontSize: '0.65rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.3rem',
+                            fontWeight: 600
+                        }}
+                    >
+                        <Bot size={12} /> Add Drone
                     </button>
 
                     <button
@@ -609,6 +644,77 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                                     {((bodyProps.angle || 0) * 180 / Math.PI).toFixed(1)}°
                                 </div>
                             </div>
+
+                            {/* Drone Behavior Editor */}
+                            {(() => {
+                                const droneInfo = getDroneInfo(selectedBodyId);
+                                if (!droneInfo) return null;
+                                return (
+                                    <div style={{ marginTop: '0.75rem', borderTop: '1px solid #2d2d3d', paddingTop: '0.5rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.3rem' }}>
+                                            <Bot size={12} style={{ color: '#00ff88' }} />
+                                            <span style={{ fontSize: '0.6rem', color: '#00ff88', fontWeight: 600 }}>Drone Behavior</span>
+                                        </div>
+
+                                        {/* Template Selector */}
+                                        <select
+                                            onChange={(e) => {
+                                                const template = BEHAVIOR_TEMPLATES[e.target.value];
+                                                if (template) {
+                                                    updateDroneBehavior(selectedBodyId, template);
+                                                    setEditingCode(template);
+                                                }
+                                            }}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.3rem',
+                                                marginBottom: '0.3rem',
+                                                background: '#1a1b26',
+                                                border: '1px solid #2d2d3d',
+                                                borderRadius: '4px',
+                                                color: '#a9b1d6',
+                                                fontSize: '0.6rem'
+                                            }}
+                                        >
+                                            <option value="">-- Select Template --</option>
+                                            <option value="wander">🔀 Wander</option>
+                                            <option value="seekNearest">🎯 Seek Nearest</option>
+                                            <option value="avoidAll">↩️ Avoid All</option>
+                                            <option value="followMouse">🖱️ Follow Mouse</option>
+                                            <option value="swarm">🐝 Swarm</option>
+                                        </select>
+
+                                        {/* Code Editor */}
+                                        <textarea
+                                            value={editingCode || droneInfo.behaviorCode}
+                                            onChange={(e) => setEditingCode(e.target.value)}
+                                            onBlur={() => {
+                                                if (editingCode) {
+                                                    updateDroneBehavior(selectedBodyId, editingCode);
+                                                }
+                                            }}
+                                            style={{
+                                                width: '100%',
+                                                height: '120px',
+                                                padding: '0.4rem',
+                                                background: '#0d0d14',
+                                                border: '1px solid #2d2d3d',
+                                                borderRadius: '4px',
+                                                color: '#9ece6a',
+                                                fontSize: '0.55rem',
+                                                fontFamily: 'monospace',
+                                                resize: 'vertical',
+                                                lineHeight: 1.4
+                                            }}
+                                            placeholder="// Write behavior code here..."
+                                        />
+
+                                        <div style={{ fontSize: '0.5rem', color: '#565f89', marginTop: '0.3rem' }}>
+                                            API: this.position, this.velocity, this.nearbyBodies, this.allDrones, this.applyForce(x,y)
+                                        </div>
+                                    </div>
+                                );
+                            })()}
 
                             <button
                                 onClick={() => {

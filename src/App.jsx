@@ -11,7 +11,6 @@ import { ZoomControls } from './components/ZoomControls';
 import { TelemetryDashboard } from './components/TelemetryDashboard';
 import { PhysicsPlayground } from './components/PhysicsPlayground';
 import { generateAutoPath } from './utils/pathfinding';
-import { usePhysicsSimulation } from './agents';
 
 
 function App() {
@@ -41,7 +40,6 @@ function App() {
     const [showDronePaths, setShowDronePaths] = useState(true);
     const [showForceVectors, setShowForceVectors] = useState(false);
     const [showTelemetry, setShowTelemetry] = useState(false);
-    const [physicsMode, setPhysicsMode] = useState(false); // Physics-based push/pull mode
     const [show3DMode, setShow3DMode] = useState(false); // 2D mode by default
     const [playgroundMode, setPlaygroundMode] = useState(false); // Standalone physics playground
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
@@ -146,38 +144,6 @@ function App() {
             return () => clearTimeout(timer);
         }
     }, [viewport.needsCenter]);
-
-    // Physics simulation hook for push/pull mechanics
-    const {
-        physicsState,
-        isRunning: physicsRunning,
-        showHitboxes,
-        hitboxes,
-        forceVectors,
-        showForces,
-        startPhysics,
-        stopPhysics,
-        togglePhysics,
-        setDroneTargetsFromNextState,
-        setDronePathsFromNextState,
-        toggleHitboxes,
-        toggleForceVectors,
-        setDronePower,
-        setObjectMass
-    } = usePhysicsSimulation(items, states, currentStateId, settings);
-
-    // Toggle physics mode
-    const togglePhysicsMode = () => {
-        if (physicsMode) {
-            stopPhysics();
-            setPhysicsMode(false);
-        } else {
-            // Set drone paths from their current state to next state
-            setDronePathsFromNextState();
-            startPhysics();
-            setPhysicsMode(true);
-        }
-    };
 
     const handleToggleRecord = async () => {
         if (isRecording) {
@@ -1777,49 +1743,6 @@ function App() {
                         </button>
                     </div>
 
-                    {/* Physics Mode Toggle */}
-                    <button
-                        onClick={togglePhysicsMode}
-                        style={{
-                            padding: '0.5rem 0.75rem',
-                            background: physicsMode ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'var(--bg-tertiary)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '8px',
-                            color: physicsMode ? 'white' : 'var(--text-primary)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            fontWeight: 600,
-                            fontSize: '12px',
-                            transition: 'all 0.2s'
-                        }}
-                        title={physicsMode ? 'Stop Physics Mode' : 'Start Physics Mode (Drones Push/Pull Objects)'}
-                    >
-                        {physicsMode ? '⏹️ Stop' : '⚙️ Physics'}
-                    </button>
-
-                    {/* Show Hitboxes Toggle */}
-                    <button
-                        onClick={toggleHitboxes}
-                        style={{
-                            padding: '0.5rem 0.75rem',
-                            background: showHitboxes ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'var(--bg-tertiary)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '8px',
-                            color: showHitboxes ? 'white' : 'var(--text-primary)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            fontWeight: 600,
-                            fontSize: '12px',
-                            transition: 'all 0.2s'
-                        }}
-                        title={showHitboxes ? 'Hide Hitboxes' : 'Show Hitboxes'}
-                    >
-                        {showHitboxes ? '🔲 Hide' : '🔲 Hitbox'}
-                    </button>
                     <button
                         onClick={handleToggleRecord}
                         style={{
@@ -1983,11 +1906,6 @@ function App() {
                                             setSelectedIds(new Set());
                                         }}
                                         scrollZoomEnabled={scrollZoomEnabled}
-                                        physicsMode={physicsMode}
-                                        physicsState={physicsState}
-                                        showHitboxes={showHitboxes}
-                                        hitboxes={hitboxes}
-                                        forceVectors={forceVectors}
                                     />
                                 )}
 
@@ -2020,363 +1938,363 @@ function App() {
 
             {/* Settings Modal */}
             {showSettings && (
-            <div style={{
-                position: 'fixed',
-                inset: 0,
-                background: 'rgba(0,0,0,0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 1000
-            }} onClick={() => setShowSettings(false)}>
                 <div style={{
-                    background: 'var(--bg-secondary)',
-                    borderRadius: '12px',
-                    border: '1px solid var(--border-color)',
-                    width: '500px',
-                    maxHeight: '80vh',
-                    overflow: 'auto',
-                    boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
-                }} onClick={(e) => e.stopPropagation()}>
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000
+                }} onClick={() => setShowSettings(false)}>
                     <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '1rem 1.5rem',
-                        borderBottom: '1px solid var(--border-color)'
-                    }}>
-                        <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Settings</h2>
-                        <button
-                            onClick={() => setShowSettings(false)}
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: 'var(--text-secondary)',
-                                cursor: 'pointer',
-                                padding: '0.25rem'
-                            }}
-                        >
-                            <X size={20} />
-                        </button>
-                    </div>
-
-                    <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        {/* Canvas Settings */}
-                        <div>
-                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Canvas</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Show Grid</span>
-                                    <input
-                                        type="checkbox"
-                                        checked={settings.showGrid}
-                                        onChange={(e) => setSettings(prev => ({ ...prev, showGrid: e.target.checked }))}
-                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                    />
-                                </label>
-                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Grid Size</span>
-                                    <input
-                                        type="number"
-                                        value={settings.gridSize}
-                                        onChange={(e) => setSettings(prev => ({ ...prev, gridSize: parseInt(e.target.value) || 20 }))}
-                                        style={{ width: '80px', padding: '0.375rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)' }}
-                                    />
-                                </label>
-                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Snap to Grid</span>
-                                    <input
-                                        type="checkbox"
-                                        checked={settings.snapToGrid}
-                                        onChange={(e) => setSettings(prev => ({ ...prev, snapToGrid: e.target.checked }))}
-                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                    />
-                                </label>
-                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Pan Sensitivity</span>
-                                    <input
-                                        type="range"
-                                        min="0.1"
-                                        max="2"
-                                        step="0.1"
-                                        value={settings.panSensitivity}
-                                        onChange={(e) => setSettings(prev => ({ ...prev, panSensitivity: parseFloat(e.target.value) }))}
-                                        style={{ width: '100px', cursor: 'pointer' }}
-                                    />
-                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.panSensitivity}x</span>
-                                </label>
-                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Zoom Sensitivity</span>
-                                    <input
-                                        type="range"
-                                        min="0.5"
-                                        max="2"
-                                        step="0.1"
-                                        value={settings.zoomSensitivity}
-                                        onChange={(e) => setSettings(prev => ({ ...prev, zoomSensitivity: parseFloat(e.target.value) }))}
-                                        style={{ width: '100px', cursor: 'pointer' }}
-                                    />
-                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.zoomSensitivity}x</span>
-                                </label>
-                            </div>
-                        </div>
-
-
-
-                        {/* Display Settings */}
-                        <div>
-                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Display</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontSize: '0.875rem', cursor: 'pointer' }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={showTelemetry}
-                                        onChange={(e) => setShowTelemetry(e.target.checked)}
-                                    />
-                                    Show Telemetry Dashboard
-                                </label>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontSize: '0.875rem', cursor: 'pointer' }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={show3DMode}
-                                        onChange={(e) => setShow3DMode(e.target.checked)}
-                                    />
-                                    Enable 3D Altitude View
-                                </label>
-                            </div>
-                        </div>
-
-                        {/* Animation Settings */}
-                        <div>
-                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Animation</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Animation Duration (seconds)</span>
-                                    <input
-                                        type="number"
-                                        min="0.5"
-                                        max="10"
-                                        step="0.5"
-                                        value={settings.animationDuration}
-                                        onChange={(e) => setSettings(prev => ({ ...prev, animationDuration: parseFloat(e.target.value) || 2 }))}
-                                        style={{ width: '80px', padding: '0.375rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)' }}
-                                    />
-                                </label>
-                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Path Smoothness</span>
-                                    <input
-                                        type="range"
-                                        min="1"
-                                        max="20"
-                                        step="1"
-                                        value={settings.pathSmoothness}
-                                        onChange={(e) => setSettings(prev => ({ ...prev, pathSmoothness: parseInt(e.target.value) }))}
-                                        style={{ width: '100px', cursor: 'pointer' }}
-                                    />
-                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.pathSmoothness}</span>
-                                </label>
-                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Easing Function</span>
-                                    <select
-                                        value={settings.easing}
-                                        onChange={(e) => setSettings(prev => ({ ...prev, easing: e.target.value }))}
-                                        style={{ padding: '0.375rem 0.75rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', cursor: 'pointer' }}
-                                    >
-                                        <option value="linear">Linear</option>
-                                        <option value="easeInQuad">Ease In (Quad)</option>
-                                        <option value="easeOutQuad">Ease Out (Quad)</option>
-                                        <option value="easeInOutQuad">Ease In/Out (Quad)</option>
-                                        <option value="easeInOutCubic">Ease In/Out (Cubic)</option>
-                                    </select>
-                                </label>
-                            </div>
-                        </div>
-
-                        {/* Objects Settings */}
-                        <div>
-                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Objects</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Default Drone Type</span>
-                                    <select
-                                        value={settings.defaultDroneType}
-                                        onChange={(e) => setSettings(prev => ({ ...prev, defaultDroneType: e.target.value }))}
-                                        style={{ padding: '0.375rem 0.75rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', cursor: 'pointer' }}
-                                    >
-                                        <option value="air">Air Drone</option>
-                                        <option value="ground">Ground Drone</option>
-                                    </select>
-                                </label>
-                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Show Object Labels</span>
-                                    <input
-                                        type="checkbox"
-                                        checked={settings.showObjectLabels}
-                                        onChange={(e) => setSettings(prev => ({ ...prev, showObjectLabels: e.target.checked }))}
-                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                    />
-                                </label>
-                            </div>
-                        </div>
-
-                        {/* System Settings */}
-                        <div>
-                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>System</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Auto-Save to Browser</span>
-                                    <input
-                                        type="checkbox"
-                                        checked={settings.autoSave}
-                                        onChange={(e) => setSettings(prev => ({ ...prev, autoSave: e.target.checked }))}
-                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                    />
-                                </label>
-                            </div>
-                        </div>
-
-                        {/* Reset Button */}
-                        <button
-                            onClick={() => setSettings({
-                                gridSize: 20,
-                                snapToGrid: false,
-                                showGrid: true,
-                                animationDuration: 2,
-                                defaultDroneType: 'air',
-                                autoSave: false,
-                                panSensitivity: 0.5,
-                                zoomSensitivity: 1,
-                                showObjectLabels: true,
-                                pathSmoothness: 10,
-                                easing: 'linear'
-                            })}
-                            style={{
-                                padding: '0.75rem',
-                                background: 'var(--bg-tertiary)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: '8px',
-                                color: 'var(--text-secondary)',
-                                cursor: 'pointer',
-                                fontSize: '0.875rem',
-                                fontWeight: 500,
-                                marginTop: '0.5rem'
-                            }}
-                        >
-                            Reset to Defaults
-                        </button>
-                        <button
-                            onClick={() => setShowSettings(false)}
-                            style={{
-                                padding: '0.75rem',
-                                background: 'var(--accent-color)',
-                                border: 'none',
-                                borderRadius: '8px',
-                                color: 'white',
-                                cursor: 'pointer',
-                                fontSize: '0.875rem',
-                                fontWeight: 500,
-                                marginTop: '0.5rem'
-                            }}
-                        >
-                            Save & Close
-                        </button>
-
+                        background: 'var(--bg-secondary)',
+                        borderRadius: '12px',
+                        border: '1px solid var(--border-color)',
+                        width: '500px',
+                        maxHeight: '80vh',
+                        overflow: 'auto',
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
+                    }} onClick={(e) => e.stopPropagation()}>
                         <div style={{
-                            marginTop: '1.5rem',
-                            paddingTop: '1rem',
-                            borderTop: '1px solid var(--border-color)',
-                            textAlign: 'center',
-                            fontSize: '0.75rem',
-                            color: 'var(--text-secondary)'
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '1rem 1.5rem',
+                            borderBottom: '1px solid var(--border-color)'
                         }}>
-                            Created by Mario Sumali
+                            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Settings</h2>
+                            <button
+                                onClick={() => setShowSettings(false)}
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    padding: '0.25rem'
+                                }}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            {/* Canvas Settings */}
+                            <div>
+                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Canvas</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Show Grid</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={settings.showGrid}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, showGrid: e.target.checked }))}
+                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                        />
+                                    </label>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Grid Size</span>
+                                        <input
+                                            type="number"
+                                            value={settings.gridSize}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, gridSize: parseInt(e.target.value) || 20 }))}
+                                            style={{ width: '80px', padding: '0.375rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)' }}
+                                        />
+                                    </label>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Snap to Grid</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={settings.snapToGrid}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, snapToGrid: e.target.checked }))}
+                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                        />
+                                    </label>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Pan Sensitivity</span>
+                                        <input
+                                            type="range"
+                                            min="0.1"
+                                            max="2"
+                                            step="0.1"
+                                            value={settings.panSensitivity}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, panSensitivity: parseFloat(e.target.value) }))}
+                                            style={{ width: '100px', cursor: 'pointer' }}
+                                        />
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.panSensitivity}x</span>
+                                    </label>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Zoom Sensitivity</span>
+                                        <input
+                                            type="range"
+                                            min="0.5"
+                                            max="2"
+                                            step="0.1"
+                                            value={settings.zoomSensitivity}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, zoomSensitivity: parseFloat(e.target.value) }))}
+                                            style={{ width: '100px', cursor: 'pointer' }}
+                                        />
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.zoomSensitivity}x</span>
+                                    </label>
+                                </div>
+                            </div>
+
+
+
+                            {/* Display Settings */}
+                            <div>
+                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Display</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontSize: '0.875rem', cursor: 'pointer' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={showTelemetry}
+                                            onChange={(e) => setShowTelemetry(e.target.checked)}
+                                        />
+                                        Show Telemetry Dashboard
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontSize: '0.875rem', cursor: 'pointer' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={show3DMode}
+                                            onChange={(e) => setShow3DMode(e.target.checked)}
+                                        />
+                                        Enable 3D Altitude View
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Animation Settings */}
+                            <div>
+                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Animation</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Animation Duration (seconds)</span>
+                                        <input
+                                            type="number"
+                                            min="0.5"
+                                            max="10"
+                                            step="0.5"
+                                            value={settings.animationDuration}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, animationDuration: parseFloat(e.target.value) || 2 }))}
+                                            style={{ width: '80px', padding: '0.375rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)' }}
+                                        />
+                                    </label>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Path Smoothness</span>
+                                        <input
+                                            type="range"
+                                            min="1"
+                                            max="20"
+                                            step="1"
+                                            value={settings.pathSmoothness}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, pathSmoothness: parseInt(e.target.value) }))}
+                                            style={{ width: '100px', cursor: 'pointer' }}
+                                        />
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.pathSmoothness}</span>
+                                    </label>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Easing Function</span>
+                                        <select
+                                            value={settings.easing}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, easing: e.target.value }))}
+                                            style={{ padding: '0.375rem 0.75rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                        >
+                                            <option value="linear">Linear</option>
+                                            <option value="easeInQuad">Ease In (Quad)</option>
+                                            <option value="easeOutQuad">Ease Out (Quad)</option>
+                                            <option value="easeInOutQuad">Ease In/Out (Quad)</option>
+                                            <option value="easeInOutCubic">Ease In/Out (Cubic)</option>
+                                        </select>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Objects Settings */}
+                            <div>
+                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Objects</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Default Drone Type</span>
+                                        <select
+                                            value={settings.defaultDroneType}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, defaultDroneType: e.target.value }))}
+                                            style={{ padding: '0.375rem 0.75rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                        >
+                                            <option value="air">Air Drone</option>
+                                            <option value="ground">Ground Drone</option>
+                                        </select>
+                                    </label>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Show Object Labels</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={settings.showObjectLabels}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, showObjectLabels: e.target.checked }))}
+                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* System Settings */}
+                            <div>
+                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>System</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Auto-Save to Browser</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={settings.autoSave}
+                                            onChange={(e) => setSettings(prev => ({ ...prev, autoSave: e.target.checked }))}
+                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Reset Button */}
+                            <button
+                                onClick={() => setSettings({
+                                    gridSize: 20,
+                                    snapToGrid: false,
+                                    showGrid: true,
+                                    animationDuration: 2,
+                                    defaultDroneType: 'air',
+                                    autoSave: false,
+                                    panSensitivity: 0.5,
+                                    zoomSensitivity: 1,
+                                    showObjectLabels: true,
+                                    pathSmoothness: 10,
+                                    easing: 'linear'
+                                })}
+                                style={{
+                                    padding: '0.75rem',
+                                    background: 'var(--bg-tertiary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '8px',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    fontSize: '0.875rem',
+                                    fontWeight: 500,
+                                    marginTop: '0.5rem'
+                                }}
+                            >
+                                Reset to Defaults
+                            </button>
+                            <button
+                                onClick={() => setShowSettings(false)}
+                                style={{
+                                    padding: '0.75rem',
+                                    background: 'var(--accent-color)',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    fontSize: '0.875rem',
+                                    fontWeight: 500,
+                                    marginTop: '0.5rem'
+                                }}
+                            >
+                                Save & Close
+                            </button>
+
+                            <div style={{
+                                marginTop: '1.5rem',
+                                paddingTop: '1rem',
+                                borderTop: '1px solid var(--border-color)',
+                                textAlign: 'center',
+                                fontSize: '0.75rem',
+                                color: 'var(--text-secondary)'
+                            }}>
+                                Created by Mario Sumali
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        )
-    }
+            )
+            }
 
-    {/* Keyboard Shortcuts Help Modal */ }
-    {
-        showHelp && (
-            <div style={{
-                position: 'fixed',
-                inset: 0,
-                background: 'rgba(0, 0, 0, 0.6)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 1000
-            }}>
-                <div style={{
-                    background: 'var(--bg-secondary)',
-                    borderRadius: '16px',
-                    padding: '1.5rem',
-                    width: '500px',
-                    maxHeight: '80vh',
-                    overflow: 'auto',
-                    border: '1px solid var(--border-color)'
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                        <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Keyboard Shortcuts</h2>
-                        <button onClick={() => setShowHelp(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
-                            <X size={20} />
-                        </button>
-                    </div>
-
-                    <div style={{ display: 'grid', gap: '0.5rem' }}>
-                        {[
-                            ['Escape', 'Deselect / Cancel'],
-                            ['Delete', 'Delete selected'],
-                            ['Ctrl + A', 'Select all'],
-                            ['Ctrl + C', 'Copy selected'],
-                            ['Ctrl + V', 'Paste'],
-                            ['Ctrl + D', 'Duplicate selected'],
-                            ['Ctrl + Z', 'Undo'],
-                            ['Ctrl + Y', 'Redo'],
-                            ['Ctrl + G', 'Group selected'],
-                            ['Enter', 'Finish drawing'],
-                            ['Shift + Drag', 'Pan canvas'],
-                            ['Scroll', 'Zoom in/out'],
-                            ['?', 'Show this help']
-                        ].map(([key, desc]) => (
-                            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-tertiary)' }}>
-                                <kbd style={{
-                                    padding: '0.25rem 0.5rem',
-                                    background: 'var(--bg-primary)',
-                                    borderRadius: '4px',
-                                    fontSize: '0.75rem',
-                                    fontFamily: 'monospace',
-                                    border: '1px solid var(--border-color)'
-                                }}>{key}</kbd>
-                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{desc}</span>
+            {/* Keyboard Shortcuts Help Modal */}
+            {
+                showHelp && (
+                    <div style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0, 0, 0, 0.6)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 1000
+                    }}>
+                        <div style={{
+                            background: 'var(--bg-secondary)',
+                            borderRadius: '16px',
+                            padding: '1.5rem',
+                            width: '500px',
+                            maxHeight: '80vh',
+                            overflow: 'auto',
+                            border: '1px solid var(--border-color)'
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Keyboard Shortcuts</h2>
+                                <button onClick={() => setShowHelp(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                                    <X size={20} />
+                                </button>
                             </div>
-                        ))}
-                    </div>
 
-                    <button
-                        onClick={() => setShowHelp(false)}
-                        style={{
-                            width: '100%',
-                            padding: '0.75rem',
-                            background: 'var(--accent-color)',
-                            border: 'none',
-                            borderRadius: '8px',
-                            color: 'white',
-                            cursor: 'pointer',
-                            marginTop: '1rem',
-                            fontWeight: 500
-                        }}
-                    >
-                        Got it!
-                    </button>
-                </div>
-            </div>
-        )
-    }
-            </div >
-            );
+                            <div style={{ display: 'grid', gap: '0.5rem' }}>
+                                {[
+                                    ['Escape', 'Deselect / Cancel'],
+                                    ['Delete', 'Delete selected'],
+                                    ['Ctrl + A', 'Select all'],
+                                    ['Ctrl + C', 'Copy selected'],
+                                    ['Ctrl + V', 'Paste'],
+                                    ['Ctrl + D', 'Duplicate selected'],
+                                    ['Ctrl + Z', 'Undo'],
+                                    ['Ctrl + Y', 'Redo'],
+                                    ['Ctrl + G', 'Group selected'],
+                                    ['Enter', 'Finish drawing'],
+                                    ['Shift + Drag', 'Pan canvas'],
+                                    ['Scroll', 'Zoom in/out'],
+                                    ['?', 'Show this help']
+                                ].map(([key, desc]) => (
+                                    <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-tertiary)' }}>
+                                        <kbd style={{
+                                            padding: '0.25rem 0.5rem',
+                                            background: 'var(--bg-primary)',
+                                            borderRadius: '4px',
+                                            fontSize: '0.75rem',
+                                            fontFamily: 'monospace',
+                                            border: '1px solid var(--border-color)'
+                                        }}>{key}</kbd>
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{desc}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button
+                                onClick={() => setShowHelp(false)}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.75rem',
+                                    background: 'var(--accent-color)',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    marginTop: '1rem',
+                                    fontWeight: 500
+                                }}
+                            >
+                                Got it!
+                            </button>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
+    );
 }
 
 export default App;
