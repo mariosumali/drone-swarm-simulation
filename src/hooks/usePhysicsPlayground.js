@@ -13,9 +13,11 @@ export function usePhysicsPlayground(canvasRef, containerRef) {
     const mouseConstraintRef = useRef(null);
 
     const [objects, setObjects] = useState([]);
-    const [gravity, setGravity] = useState({ x: 0, y: 1 });
+    const [gravity, setGravity] = useState({ x: 0, y: 0 });
     const [isInitialized, setIsInitialized] = useState(false);
     const [selectedBodyId, setSelectedBodyId] = useState(null);
+    const [selectedBodyIds, setSelectedBodyIds] = useState(new Set()); // Multi-select
+    const [showGrid, setShowGrid] = useState(false); // Toggleable grid
 
     // Render options (like Matter.js demo)
     const [renderOptions, setRenderOptions] = useState({
@@ -442,19 +444,20 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         // Default to wander behavior if no code provided
         const code = behaviorCode || BEHAVIOR_TEMPLATES.wander;
 
-        // Drone-specific styling
+        // Drone-specific styling - circles with distinctive double-ring look
         const droneColor = options.color || '#00ff88';
-        const droneSize = options.size || 15;
+        const droneSize = options.size || 12;
 
+        // Create circle body for drone (with special visual styling)
         const body = Matter.Bodies.circle(x, y, droneSize, {
             density: 0.002,
             friction: 0.05,
             frictionAir: 0.02,
             restitution: 0.3,
             render: {
-                fillStyle: renderOptions.wireframes ? 'transparent' : droneColor,
+                fillStyle: '#001a0d',  // Dark green fill
                 strokeStyle: droneColor,
-                lineWidth: 3
+                lineWidth: 4  // Thick bright green border
             },
             label: `drone_${Date.now()}`
         });
@@ -534,7 +537,7 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
 
     // Reset gravity
     const resetGravity = useCallback(() => {
-        setGravity({ x: 0, y: 1 });
+        setGravity({ x: 0, y: 0 });
     }, []);
 
     // Toggle wireframes
@@ -687,6 +690,59 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         }
     }, []);
 
+    // Toggle grid visibility
+    const toggleGrid = useCallback(() => {
+        setShowGrid(prev => !prev);
+    }, []);
+
+    // Multi-select: toggle a body in the selection set
+    const toggleBodySelection = useCallback((id, addToSelection = false) => {
+        if (addToSelection) {
+            setSelectedBodyIds(prev => {
+                const newSet = new Set(prev);
+                if (newSet.has(id)) {
+                    newSet.delete(id);
+                } else {
+                    newSet.add(id);
+                }
+                return newSet;
+            });
+        } else {
+            setSelectedBodyIds(new Set([id]));
+        }
+        setSelectedBodyId(id);
+
+        // Update highlighting
+        if (engineRef.current) {
+            const bodies = Matter.Composite.allBodies(engineRef.current.world);
+            const selected = addToSelection ? new Set([...selectedBodyIds, id]) : new Set([id]);
+            bodies.forEach(body => {
+                if (!body.isStatic) {
+                    if (selected.has(body.id)) {
+                        body.render.lineWidth = 4;
+                        body.render.strokeStyle = '#ff0';
+                    } else {
+                        body.render.lineWidth = 2;
+                    }
+                }
+            });
+        }
+    }, [selectedBodyIds]);
+
+    // Clear all selections
+    const clearSelection = useCallback(() => {
+        setSelectedBodyId(null);
+        setSelectedBodyIds(new Set());
+        if (engineRef.current) {
+            const bodies = Matter.Composite.allBodies(engineRef.current.world);
+            bodies.forEach(body => {
+                if (!body.isStatic) {
+                    body.render.lineWidth = 2;
+                }
+            });
+        }
+    }, []);
+
     return {
         objects,
         drones,
@@ -695,6 +751,8 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         bodyDefaults,
         isRunning: isInitialized,
         selectedBodyId,
+        selectedBodyIds,
+        showGrid,
         addObject,
         addDrone,
         addCustomObject,
@@ -706,12 +764,15 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         setRenderOption,
         setBodyDefault,
         toggleWireframes,
+        toggleGrid,
         getBodiesInfo,
         getBodyProperties,
         updateBodyProperty,
         updateDroneBehavior,
         getDroneInfo,
         selectBody,
+        toggleBodySelection,
+        clearSelection,
         BEHAVIOR_TEMPLATES,
         engine: engineRef.current,
         render: renderRef.current

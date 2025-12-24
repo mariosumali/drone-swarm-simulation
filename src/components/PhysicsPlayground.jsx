@@ -108,6 +108,8 @@ export function PhysicsPlayground({ theme = 'dark' }) {
         bodyDefaults,
         isRunning,
         selectedBodyId,
+        selectedBodyIds,
+        showGrid,
         addObject,
         addDrone,
         addCustomObject,
@@ -119,6 +121,9 @@ export function PhysicsPlayground({ theme = 'dark' }) {
         setRenderOption,
         setBodyDefault,
         selectBody,
+        toggleBodySelection,
+        clearSelection,
+        toggleGrid,
         getBodyProperties,
         updateBodyProperty,
         updateDroneBehavior,
@@ -372,7 +377,7 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                             cursor: 'pointer'
                         }}
                     >
-                        Reset (0, 1)
+                        Reset (0, 0)
                     </button>
                 </Section>
 
@@ -421,6 +426,7 @@ export function PhysicsPlayground({ theme = 'dark' }) {
 
                 {/* Render Options */}
                 <Section title="Render" defaultOpen={false}>
+                    <ToggleControl label="showGrid" value={showGrid} onChange={toggleGrid} />
                     <ToggleControl label="wireframes" value={renderOptions.wireframes} onChange={(v) => setRenderOption('wireframes', v)} />
                     <ToggleControl label="showBounds" value={renderOptions.showBounds} onChange={(v) => setRenderOption('showBounds', v)} />
                     <ToggleControl label="showVelocity" value={renderOptions.showVelocity} onChange={(v) => setRenderOption('showVelocity', v)} />
@@ -460,6 +466,32 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                 }}>
                     {isRunning ? '● Running' : '○ Stopped'}
                 </div>
+
+                {/* Grid Overlay */}
+                {showGrid && (
+                    <svg
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            pointerEvents: 'none',
+                            zIndex: 5
+                        }}
+                    >
+                        <defs>
+                            <pattern id="smallGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+                                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
+                            </pattern>
+                            <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
+                                <rect width="100" height="100" fill="url(#smallGrid)" />
+                                <path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+                            </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#grid)" />
+                    </svg>
+                )}
 
                 {/* Drawing mode indicator */}
                 {drawingMode && (
