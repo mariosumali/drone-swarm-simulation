@@ -104,17 +104,24 @@ export class PhysicsWorld {
 
     /**
      * Add a drone body (circle hitbox)
+     * @param {string} id - Unique drone ID
+     * @param {{x: number, y: number}} position - Initial position
+     * @param {Object} config - Configuration options
+     * @param {number} config.radius - Hitbox radius (default: 15)
+     * @param {number} config.power - Power level 1-100 (default: 50)
      */
     addDrone(id, position, config = {}) {
         const radius = config.radius || 15;
-        const strength = config.strength || 0.01; // Force magnitude
+        // Power 1-100 -> strength 0.005-0.05 (scaled for physics)
+        const power = config.power || 50;
+        const strength = 0.005 + (power / 100) * 0.045;
 
         const body = Matter.Bodies.circle(position.x, position.y, radius, {
             label: `drone_${id}`,
-            frictionAir: 0.1,
-            friction: 0.5,
-            restitution: 0.2,
-            density: 0.002,
+            frictionAir: 0.08,
+            friction: 0.3,
+            restitution: 0.3,
+            density: 0.003,
             collisionFilter: {
                 category: CATEGORIES.DRONE,
                 mask: CATEGORIES.OBJECT | CATEGORIES.OBSTACLE | CATEGORIES.BOUNDARY | CATEGORIES.DRONE
@@ -128,9 +135,14 @@ export class PhysicsWorld {
 
         this.droneBodies.set(id, {
             body,
-            config: { radius, strength, ...config },
-            targetPosition: null,
-            isPushing: false
+            config: { radius, power, strength, ...config },
+            // Path following
+            path: null,           // Array of waypoints [{x, y}, ...]
+            currentWaypoint: 0,   // Current waypoint index
+            targetPosition: null, // Current target (waypoint or single position)
+            // State
+            isPushing: false,
+            currentForce: { x: 0, y: 0 }  // For force visualization
         });
 
         return body;
@@ -233,12 +245,26 @@ export class PhysicsWorld {
     }
 
     /**
-     * Set target position for a drone
+     * Set target position for a drone (single point)
      */
     setDroneTarget(id, target) {
         const drone = this.droneBodies.get(id);
         if (drone) {
             drone.targetPosition = target;
+            drone.path = null;
+            drone.currentWaypoint = 0;
+        }
+    }
+
+    /**
+     * Set a full path for a drone to follow (array of waypoints)
+     */
+    setDronePath(id, path) {
+        const drone = this.droneBodies.get(id);
+        if (drone && path && path.length > 0) {
+            drone.path = path;
+            drone.currentWaypoint = 0;
+            drone.targetPosition = path[0];
         }
     }
 
@@ -249,6 +275,33 @@ export class PhysicsWorld {
         const obj = this.objectBodies.get(id);
         if (obj) {
             obj.targetPosition = target;
+        }
+    }
+
+    /**
+     * Update drone power level
+     */
+    setDronePower(id, power) {
+        const drone = this.droneBodies.get(id);
+        if (drone) {
+            drone.config.power = power;
+            drone.config.strength = 0.005 + (power / 100) * 0.045;
+        }
+    }
+
+    /**
+     * Update object mass
+     */
+    setObjectMass(id, mass) {
+        const obj = this.objectBodies.get(id);
+        if (obj) {
+            obj.config.mass = mass;
+            // Update body density based on new mass
+            const { body, config } = obj;
+            const area = config.type === 'circle'
+                ? Math.PI * (config.size?.radius || 50) ** 2
+                : (config.size?.width || 100) * (config.size?.height || 100);
+            Matter.Body.setDensity(body, mass / area);
         }
     }
 
@@ -271,33 +324,51 @@ export class PhysicsWorld {
     }
 
     /**
-     * Update a single drone - move toward target and push objects
+     * Update a single drone - move toward target/path and push objects
      */
     _updateDrone(drone, deltaTime) {
-        const { body, config, targetPosition } = drone;
+        const { body, config, targetPosition, path, currentWaypoint } = drone;
 
-        if (!targetPosition) return;
+        if (!targetPosition) {
+            drone.currentForce = { x: 0, y: 0 };
+            return;
+        }
 
         const pos = body.position;
         const dx = targetPosition.x - pos.x;
         const dy = targetPosition.y - pos.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        if (distance < 5) {
-            // Close enough, stop
+        // Waypoint reached threshold
+        const waypointThreshold = 10;
+
+        if (distance < waypointThreshold) {
+            // Check if we're following a path and have more waypoints
+            if (path && currentWaypoint < path.length - 1) {
+                drone.currentWaypoint++;
+                drone.targetPosition = path[drone.currentWaypoint];
+                return; // Continue to next waypoint
+            }
+
+            // Final destination reached
             Matter.Body.setVelocity(body, { x: 0, y: 0 });
+            drone.currentForce = { x: 0, y: 0 };
             return;
         }
 
-        // Calculate force direction
-        const fx = (dx / distance) * config.strength;
-        const fy = (dy / distance) * config.strength;
+        // Calculate force direction with strength based on power
+        const forceMag = config.strength;
+        const fx = (dx / distance) * forceMag;
+        const fy = (dy / distance) * forceMag;
+
+        // Store force for visualization
+        drone.currentForce = { x: fx * 10000, y: fy * 10000 };  // Scale up for visualization
 
         // Apply force to move toward target
         Matter.Body.applyForce(body, pos, { x: fx, y: fy });
 
-        // Limit velocity
-        const maxSpeed = 3;
+        // Limit velocity (max speed scales slightly with power)
+        const maxSpeed = 2 + (config.power / 100) * 3;
         const vel = body.velocity;
         const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
         if (speed > maxSpeed) {
@@ -349,13 +420,19 @@ export class PhysicsWorld {
         };
 
         for (const [id, drone] of this.droneBodies) {
-            const { body, config } = drone;
+            const { body, config, currentForce, path, currentWaypoint, targetPosition } = drone;
             state.drones[id] = {
                 x: body.position.x,
                 y: body.position.y,
                 rotation: body.angle * 180 / Math.PI,
                 radius: config.radius,
-                velocity: body.velocity
+                power: config.power,
+                velocity: body.velocity,
+                force: currentForce || { x: 0, y: 0 },
+                hasPath: !!path,
+                currentWaypoint: currentWaypoint,
+                totalWaypoints: path ? path.length : 0,
+                targetPosition: targetPosition
             };
         }
 
@@ -423,6 +500,31 @@ export class PhysicsWorld {
     }
 
     /**
+     * Get force vectors for visualization
+     */
+    getForceVectors() {
+        const vectors = [];
+
+        for (const [id, drone] of this.droneBodies) {
+            const { body, currentForce, targetPosition } = drone;
+            if (currentForce && (currentForce.x !== 0 || currentForce.y !== 0)) {
+                vectors.push({
+                    id,
+                    entityType: 'drone',
+                    x: body.position.x,
+                    y: body.position.y,
+                    forceX: currentForce.x,
+                    forceY: currentForce.y,
+                    targetX: targetPosition?.x,
+                    targetY: targetPosition?.y
+                });
+            }
+        }
+
+        return vectors;
+    }
+
+    /**
      * Sync from items array
      */
     syncFromItems(items, currentStateId) {
@@ -442,7 +544,7 @@ export class PhysicsWorld {
             if (item.type === 'drone') {
                 this.addDrone(item.id, pos, {
                     radius: 15,
-                    strength: item.strength || 0.01
+                    power: item.power || 50  // Use item's power property
                 });
             } else if (item.isObstacle) {
                 this.addObstacle(item.id, item.type, pos, {

@@ -19,7 +19,8 @@ export function Playground({
     physicsMode = false,
     physicsState = { drones: {}, objects: {} },
     showHitboxes = false,
-    hitboxes = []
+    hitboxes = [],
+    forceVectors = []
 }) {
 
     const playgroundRef = useRef(null);
@@ -38,8 +39,30 @@ export function Playground({
         return start + (end - start) * progress;
     };
 
-    // Get item position (with interpolation during simulation)
+    // Get item position (with interpolation during simulation or physics positions)
     const getItemPosition = (item) => {
+        // PHYSICS MODE: Use physics state positions for drones and objects
+        if (physicsMode) {
+            if (item.type === 'drone' && physicsState.drones?.[item.id]) {
+                const physPos = physicsState.drones[item.id];
+                return {
+                    x: physPos.x,
+                    y: physPos.y,
+                    z: item.statePositions?.[currentStateId]?.z || 0,
+                    rotation: physPos.rotation || 0
+                };
+            }
+            if (item.type !== 'drone' && !item.isObstacle && physicsState.objects?.[item.id]) {
+                const physPos = physicsState.objects[item.id];
+                return {
+                    x: physPos.x,
+                    y: physPos.y,
+                    z: item.statePositions?.[currentStateId]?.z || 0,
+                    rotation: physPos.rotation || 0
+                };
+            }
+        }
+
         // Regular item positioning (not simulating)
         if (!isSimulating || !item.statePositions) {
             return item.statePositions?.[currentStateId] || { x: 0, y: 0, z: 0, rotation: 0 };

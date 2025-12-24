@@ -148,24 +148,30 @@ export function LibraryPanel({
                                 minWidth: '160px'
                             }}>
                                 <div
-                                    draggable={true}
-                                    onDragStart={(e) => handleDragStart(e, 'drone-air')}
-                                    onDragEnd={() => setShowDroneMenu(false)}
+                                    draggable={false}
                                     style={{
                                         padding: '0.5rem 0.75rem',
-                                        cursor: 'grab',
+                                        cursor: 'not-allowed',
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: '0.5rem',
                                         borderBottom: '1px solid var(--border-color)',
-                                        background: 'var(--bg-tertiary)'
+                                        background: 'var(--bg-tertiary)',
+                                        opacity: 0.5,
+                                        filter: 'grayscale(100%)'
                                     }}
-                                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-primary)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                                    title="Air Drone - Under Construction"
                                 >
                                     <Plane size={14} style={{ color: '#60a5fa' }} />
                                     <span style={{ fontSize: '0.75rem' }}>Air Drone</span>
-                                    <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', marginLeft: 'auto' }}>Surface</span>
+                                    <span style={{
+                                        fontSize: '0.55rem',
+                                        background: '#f59e0b',
+                                        color: 'white',
+                                        padding: '1px 4px',
+                                        borderRadius: '4px',
+                                        marginLeft: 'auto'
+                                    }}>WIP</span>
                                 </div>
                                 <div
                                     draggable={true}

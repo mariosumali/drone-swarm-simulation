@@ -13,6 +13,8 @@ export function usePhysicsSimulation(items, states, currentStateId, settings = {
     const [isRunning, setIsRunning] = useState(false);
     const [showHitboxes, setShowHitboxes] = useState(false);
     const [hitboxes, setHitboxes] = useState([]);
+    const [forceVectors, setForceVectors] = useState([]);
+    const [showForces, setShowForces] = useState(false);
 
     // Initialize physics world
     useEffect(() => {
@@ -26,6 +28,8 @@ export function usePhysicsSimulation(items, states, currentStateId, settings = {
             if (world.showHitboxes) {
                 setHitboxes(world.getHitboxes());
             }
+            // Always update force vectors if we want them
+            setForceVectors(world.getForceVectors());
         };
 
         worldRef.current = world;
@@ -65,8 +69,8 @@ export function usePhysicsSimulation(items, states, currentStateId, settings = {
         }
     }, [isRunning, startPhysics, stopPhysics]);
 
-    // Set drone targets based on next state
-    const setDroneTargetsFromNextState = useCallback(() => {
+    // Set drone paths based on their custom paths to next state
+    const setDronePathsFromNextState = useCallback(() => {
         if (!worldRef.current || !items || !states) return;
 
         const currentIndex = states.findIndex(s => s.id === currentStateId);
@@ -74,14 +78,22 @@ export function usePhysicsSimulation(items, states, currentStateId, settings = {
 
         const nextStateId = states[currentIndex + 1].id;
 
-        // For now, set drone targets to their next state positions
-        // In the full implementation, drones should target positions 
-        // that allow them to push objects toward their goals
         for (const item of items) {
             if (item.type === 'drone') {
+                const currentPos = item.statePositions?.[currentStateId];
                 const nextPos = item.statePositions?.[nextStateId];
-                if (nextPos) {
-                    worldRef.current.setDroneTarget(item.id, { x: nextPos.x, y: nextPos.y });
+
+                if (currentPos && nextPos) {
+                    // Check for custom path to next state
+                    const customPath = nextPos.customPath;
+
+                    if (customPath && customPath.length > 0) {
+                        // Use the custom path waypoints
+                        worldRef.current.setDronePath(item.id, customPath);
+                    } else {
+                        // Direct path to next position
+                        worldRef.current.setDronePath(item.id, [currentPos, nextPos]);
+                    }
                 }
             }
 
@@ -94,6 +106,9 @@ export function usePhysicsSimulation(items, states, currentStateId, settings = {
             }
         }
     }, [items, states, currentStateId]);
+
+    // Legacy alias for compatibility
+    const setDroneTargetsFromNextState = setDronePathsFromNextState;
 
     // Toggle hitbox visibility
     const toggleHitboxes = useCallback(() => {
@@ -108,7 +123,26 @@ export function usePhysicsSimulation(items, states, currentStateId, settings = {
         }
     }, []);
 
-    // Set drone strength
+    // Toggle force vector visibility
+    const toggleForceVectors = useCallback(() => {
+        setShowForces(prev => !prev);
+    }, []);
+
+    // Set drone power (1-100)
+    const setDronePower = useCallback((id, power) => {
+        if (worldRef.current) {
+            worldRef.current.setDronePower(id, power);
+        }
+    }, []);
+
+    // Set object mass (1-100)
+    const setObjectMass = useCallback((id, mass) => {
+        if (worldRef.current) {
+            worldRef.current.setObjectMass(id, mass);
+        }
+    }, []);
+
+    // Legacy: Set drone strength directly (deprecated, use setDronePower)
     const setDroneStrength = useCallback((id, strength) => {
         if (worldRef.current) {
             const drone = worldRef.current.droneBodies.get(id);
@@ -123,11 +157,17 @@ export function usePhysicsSimulation(items, states, currentStateId, settings = {
         isRunning,
         showHitboxes,
         hitboxes,
+        forceVectors,
+        showForces,
         startPhysics,
         stopPhysics,
         togglePhysics,
         setDroneTargetsFromNextState,
+        setDronePathsFromNextState,
         toggleHitboxes,
+        toggleForceVectors,
+        setDronePower,
+        setObjectMass,
         setDroneStrength,
         world: worldRef.current
     };

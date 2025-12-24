@@ -9,6 +9,7 @@ import { Timeline } from './components/Timeline';
 import { EntityList } from './components/EntityList';
 import { ZoomControls } from './components/ZoomControls';
 import { TelemetryDashboard } from './components/TelemetryDashboard';
+import { PhysicsPlayground } from './components/PhysicsPlayground';
 import { generateAutoPath } from './utils/pathfinding';
 import { usePhysicsSimulation } from './agents';
 
@@ -42,6 +43,7 @@ function App() {
     const [showTelemetry, setShowTelemetry] = useState(false);
     const [physicsMode, setPhysicsMode] = useState(false); // Physics-based push/pull mode
     const [show3DMode, setShow3DMode] = useState(false); // 2D mode by default
+    const [playgroundMode, setPlaygroundMode] = useState(false); // Standalone physics playground
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
     const [clipboard, setClipboard] = useState([]);
     const [theme, setTheme] = useState(() => {
@@ -151,11 +153,17 @@ function App() {
         isRunning: physicsRunning,
         showHitboxes,
         hitboxes,
+        forceVectors,
+        showForces,
         startPhysics,
         stopPhysics,
         togglePhysics,
         setDroneTargetsFromNextState,
-        toggleHitboxes
+        setDronePathsFromNextState,
+        toggleHitboxes,
+        toggleForceVectors,
+        setDronePower,
+        setObjectMass
     } = usePhysicsSimulation(items, states, currentStateId, settings);
 
     // Toggle physics mode
@@ -164,7 +172,8 @@ function App() {
             stopPhysics();
             setPhysicsMode(false);
         } else {
-            setDroneTargetsFromNextState();
+            // Set drone paths from their current state to next state
+            setDronePathsFromNextState();
             startPhysics();
             setPhysicsMode(true);
         }
@@ -1712,15 +1721,15 @@ function App() {
                         <Settings size={18} />
                     </button>
 
-                    {/* 2D/3D Toggle */}
+                    {/* Playground Mode Toggle */}
                     <button
-                        onClick={() => setShow3DMode(!show3DMode)}
+                        onClick={() => setPlaygroundMode(!playgroundMode)}
                         style={{
                             padding: '0.5rem 0.75rem',
-                            background: show3DMode ? 'linear-gradient(135deg, #3b82f6, #8b5cf6)' : 'var(--bg-tertiary)',
+                            background: playgroundMode ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'var(--bg-tertiary)',
                             border: '1px solid var(--border-color)',
                             borderRadius: '8px',
-                            color: show3DMode ? 'white' : 'var(--text-primary)',
+                            color: playgroundMode ? 'white' : 'var(--text-primary)',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
@@ -1729,10 +1738,44 @@ function App() {
                             fontSize: '12px',
                             transition: 'all 0.2s'
                         }}
-                        title={show3DMode ? 'Switch to 2D Mode' : 'Switch to 3D Mode'}
+                        title={playgroundMode ? 'Exit Physics Playground' : 'Enter Physics Playground Mode'}
                     >
-                        {show3DMode ? '🎮 3D' : '📐 2D'}
+                        🎱 {playgroundMode ? 'Exit Playground' : 'Playground'}
                     </button>
+
+                    {/* 2D/3D Toggle - 3D Under Construction */}
+                    <div style={{ position: 'relative' }}>
+                        <button
+                            disabled={true}
+                            style={{
+                                padding: '0.5rem 0.75rem',
+                                background: 'var(--bg-tertiary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '8px',
+                                color: 'var(--text-secondary)',
+                                cursor: 'not-allowed',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontWeight: 600,
+                                fontSize: '12px',
+                                transition: 'all 0.2s',
+                                opacity: 0.5,
+                                filter: 'grayscale(100%)'
+                            }}
+                            title="3D Mode - Under Construction"
+                        >
+                            🎮 3D
+                            <span style={{
+                                fontSize: '9px',
+                                background: '#f59e0b',
+                                color: 'white',
+                                padding: '1px 4px',
+                                borderRadius: '4px',
+                                marginLeft: '2px'
+                            }}>WIP</span>
+                        </button>
+                    </div>
 
                     {/* Physics Mode Toggle */}
                     <button
@@ -1842,491 +1885,498 @@ function App() {
             </header>
 
             <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                {/* Fixed Library + Entities Panel on Left */}
-                <LibraryPanel
-                    items={items}
-                    selectedIds={selectedIds}
-                    onSelect={setSelectedIds}
-                    onUpdateItem={updateItem}
-                    onDelete={(ids) => {
-                        setItems(prev => prev.filter(item => !ids.has(item.id)));
-                        setSelectedIds(new Set());
-                    }}
-                    currentStateId={currentStateId}
-                    showPathTracking={showPathTracking}
-                    onTogglePathTracking={() => setShowPathTracking(!showPathTracking)}
-                    showDronePaths={showDronePaths}
-                    onToggleDronePaths={() => setShowDronePaths(!showDronePaths)}
-                    showForceVectors={showForceVectors}
-                    onToggleForceVectors={() => setShowForceVectors(!showForceVectors)}
-                    show3DMode={show3DMode}
-                />
-
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <div ref={playgroundContainerRef} style={{ flex: 1, position: 'relative' }}>
-                        <Sidebar
+                {playgroundMode ? (
+                    <PhysicsPlayground theme={theme} />
+                ) : (
+                    <>
+                        {/* Fixed Library + Entities Panel on Left */}
+                        <LibraryPanel
                             items={items}
                             selectedIds={selectedIds}
+                            onSelect={setSelectedIds}
                             onUpdateItem={updateItem}
-                            onDelete={deleteSelected}
-                            states={states}
+                            onDelete={(ids) => {
+                                setItems(prev => prev.filter(item => !ids.has(item.id)));
+                                setSelectedIds(new Set());
+                            }}
                             currentStateId={currentStateId}
-                            onToggleItemInState={toggleItemInState}
-                            isSimulating={isSimulating}
-                            animationProgress={animationProgress}
-                            onGenerateGroundFormation={generateGroundFormation}
-                            onGenerateAirFormation={generateAirFormation}
-                            onUnlockFormation={unlockFormation}
-                            onStartPathDrawing={startPathDrawing}
-                            onClearPath={clearTransitionPath}
-                            onAutoDrawPath={autoDrawPath}
-                            pathDrawingMode={pathDrawingMode}
-                            isExpanded={isSidebarExpanded}
-                            onToggleExpand={() => setIsSidebarExpanded(!isSidebarExpanded)}
+                            showPathTracking={showPathTracking}
+                            onTogglePathTracking={() => setShowPathTracking(!showPathTracking)}
+                            showDronePaths={showDronePaths}
+                            onToggleDronePaths={() => setShowDronePaths(!showDronePaths)}
+                            showForceVectors={showForceVectors}
+                            onToggleForceVectors={() => setShowForceVectors(!showForceVectors)}
+                            show3DMode={show3DMode}
                         />
-                        {show3DMode ? (
-                            <Playground3D
-                                items={items}
-                                selectedIds={selectedIds}
-                                onSelectionChange={setSelectedIds}
-                                currentStateId={currentStateId}
-                                isSimulating={isSimulating}
-                                animationProgress={animationProgress}
-                                states={states}
-                                showPathTracking={showPathTracking}
-                                showDronePaths={showDronePaths}
-                                settings={settings}
-                                onUpdateItem={updateItem}
-                                onAddItem={addItem}
-                                onDeleteItem={(id) => {
-                                    setItems(prev => prev.filter(item => item.id !== id));
-                                    setSelectedIds(new Set());
-                                }}
-                                drawingMode={drawingMode}
-                                onDrawingModeChange={setDrawingMode}
-                                onFinishDrawing={finishDrawing}
-                            />
-                        ) : (
-                            <Playground
-                                items={items}
-                                onAddItem={addItem}
-                                onUpdateItem={updateItem}
-                                selectedIds={selectedIds}
-                                onSelectionChange={setSelectedIds}
-                                viewport={viewport}
-                                onViewportChange={setViewport}
-                                drawingMode={drawingMode}
-                                onDrawingModeChange={setDrawingMode}
-                                onFinishDrawing={finishDrawing}
-                                currentStateId={currentStateId}
-                                isSimulating={isSimulating}
-                                animationProgress={animationProgress}
-                                states={states}
-                                showPathTracking={showPathTracking}
-                                showDronePaths={showDronePaths}
-                                showForceVectors={showForceVectors}
-                                show3DMode={show3DMode}
-                                pathDrawingMode={pathDrawingMode}
-                                onPathDrawingModeChange={setPathDrawingMode}
-                                onFinishPathDrawing={finishPathDrawing}
-                                settings={settings}
-                                containerRef={playgroundContainerRef}
-                                onDeleteItem={(id) => {
-                                    setItems(prev => prev.filter(item => item.id !== id));
-                                    setSelectedIds(new Set());
-                                }}
-                                scrollZoomEnabled={scrollZoomEnabled}
-                                physicsMode={physicsMode}
-                                physicsState={physicsState}
-                                showHitboxes={showHitboxes}
-                                hitboxes={hitboxes}
-                            />
-                        )}
 
-                    </div>
-                    {showTelemetry && (
-                        <TelemetryDashboard
-                            items={items}
-                            currentStateId={currentStateId}
-                            isSimulating={isSimulating}
-                        />
-                    )}
-                    <Timeline
-                        states={states}
-                        currentStateId={currentStateId}
-                        onStateChange={setCurrentStateId}
-                        onAddState={addState}
-                        onDeleteState={deleteState}
-                        onUpdateStateName={updateStateName}
-                        isSimulating={isSimulating}
-                        onToggleSimulation={toggleSimulation}
-                        onStopSimulation={stopSimulation}
-                        playbackSpeed={playbackSpeed}
-                        onPlaybackSpeedChange={setPlaybackSpeed}
-                        animationProgress={animationProgress}
-                    />
-                </div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                            <div ref={playgroundContainerRef} style={{ flex: 1, position: 'relative' }}>
+                                <Sidebar
+                                    items={items}
+                                    selectedIds={selectedIds}
+                                    onUpdateItem={updateItem}
+                                    onDelete={deleteSelected}
+                                    states={states}
+                                    currentStateId={currentStateId}
+                                    onToggleItemInState={toggleItemInState}
+                                    isSimulating={isSimulating}
+                                    animationProgress={animationProgress}
+                                    onGenerateGroundFormation={generateGroundFormation}
+                                    onGenerateAirFormation={generateAirFormation}
+                                    onUnlockFormation={unlockFormation}
+                                    onStartPathDrawing={startPathDrawing}
+                                    onClearPath={clearTransitionPath}
+                                    onAutoDrawPath={autoDrawPath}
+                                    pathDrawingMode={pathDrawingMode}
+                                    isExpanded={isSidebarExpanded}
+                                    onToggleExpand={() => setIsSidebarExpanded(!isSidebarExpanded)}
+                                />
+                                {show3DMode ? (
+                                    <Playground3D
+                                        items={items}
+                                        selectedIds={selectedIds}
+                                        onSelectionChange={setSelectedIds}
+                                        currentStateId={currentStateId}
+                                        isSimulating={isSimulating}
+                                        animationProgress={animationProgress}
+                                        states={states}
+                                        showPathTracking={showPathTracking}
+                                        showDronePaths={showDronePaths}
+                                        settings={settings}
+                                        onUpdateItem={updateItem}
+                                        onAddItem={addItem}
+                                        onDeleteItem={(id) => {
+                                            setItems(prev => prev.filter(item => item.id !== id));
+                                            setSelectedIds(new Set());
+                                        }}
+                                        drawingMode={drawingMode}
+                                        onDrawingModeChange={setDrawingMode}
+                                        onFinishDrawing={finishDrawing}
+                                    />
+                                ) : (
+                                    <Playground
+                                        items={items}
+                                        onAddItem={addItem}
+                                        onUpdateItem={updateItem}
+                                        selectedIds={selectedIds}
+                                        onSelectionChange={setSelectedIds}
+                                        viewport={viewport}
+                                        onViewportChange={setViewport}
+                                        drawingMode={drawingMode}
+                                        onDrawingModeChange={setDrawingMode}
+                                        onFinishDrawing={finishDrawing}
+                                        currentStateId={currentStateId}
+                                        isSimulating={isSimulating}
+                                        animationProgress={animationProgress}
+                                        states={states}
+                                        showPathTracking={showPathTracking}
+                                        showDronePaths={showDronePaths}
+                                        showForceVectors={showForceVectors}
+                                        show3DMode={show3DMode}
+                                        pathDrawingMode={pathDrawingMode}
+                                        onPathDrawingModeChange={setPathDrawingMode}
+                                        onFinishPathDrawing={finishPathDrawing}
+                                        settings={settings}
+                                        containerRef={playgroundContainerRef}
+                                        onDeleteItem={(id) => {
+                                            setItems(prev => prev.filter(item => item.id !== id));
+                                            setSelectedIds(new Set());
+                                        }}
+                                        scrollZoomEnabled={scrollZoomEnabled}
+                                        physicsMode={physicsMode}
+                                        physicsState={physicsState}
+                                        showHitboxes={showHitboxes}
+                                        hitboxes={hitboxes}
+                                        forceVectors={forceVectors}
+                                    />
+                                )}
+
+                            </div>
+                            {showTelemetry && (
+                                <TelemetryDashboard
+                                    items={items}
+                                    currentStateId={currentStateId}
+                                    isSimulating={isSimulating}
+                                />
+                            )}
+                            <Timeline
+                                states={states}
+                                currentStateId={currentStateId}
+                                onStateChange={setCurrentStateId}
+                                onAddState={addState}
+                                onDeleteState={deleteState}
+                                onUpdateStateName={updateStateName}
+                                isSimulating={isSimulating}
+                                onToggleSimulation={toggleSimulation}
+                                onStopSimulation={stopSimulation}
+                                playbackSpeed={playbackSpeed}
+                                onPlaybackSpeedChange={setPlaybackSpeed}
+                                animationProgress={animationProgress}
+                            />
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Settings Modal */}
             {showSettings && (
+            <div style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0,0,0,0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000
+            }} onClick={() => setShowSettings(false)}>
                 <div style={{
-                    position: 'fixed',
-                    inset: 0,
-                    background: 'rgba(0,0,0,0.5)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1000
-                }} onClick={() => setShowSettings(false)}>
+                    background: 'var(--bg-secondary)',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-color)',
+                    width: '500px',
+                    maxHeight: '80vh',
+                    overflow: 'auto',
+                    boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
+                }} onClick={(e) => e.stopPropagation()}>
                     <div style={{
-                        background: 'var(--bg-secondary)',
-                        borderRadius: '12px',
-                        border: '1px solid var(--border-color)',
-                        width: '500px',
-                        maxHeight: '80vh',
-                        overflow: 'auto',
-                        boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
-                    }} onClick={(e) => e.stopPropagation()}>
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '1rem 1.5rem',
-                            borderBottom: '1px solid var(--border-color)'
-                        }}>
-                            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Settings</h2>
-                            <button
-                                onClick={() => setShowSettings(false)}
-                                style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: 'var(--text-secondary)',
-                                    cursor: 'pointer',
-                                    padding: '0.25rem'
-                                }}
-                            >
-                                <X size={20} />
-                            </button>
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '1rem 1.5rem',
+                        borderBottom: '1px solid var(--border-color)'
+                    }}>
+                        <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Settings</h2>
+                        <button
+                            onClick={() => setShowSettings(false)}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                padding: '0.25rem'
+                            }}
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
+
+                    <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {/* Canvas Settings */}
+                        <div>
+                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Canvas</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Show Grid</span>
+                                    <input
+                                        type="checkbox"
+                                        checked={settings.showGrid}
+                                        onChange={(e) => setSettings(prev => ({ ...prev, showGrid: e.target.checked }))}
+                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                    />
+                                </label>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Grid Size</span>
+                                    <input
+                                        type="number"
+                                        value={settings.gridSize}
+                                        onChange={(e) => setSettings(prev => ({ ...prev, gridSize: parseInt(e.target.value) || 20 }))}
+                                        style={{ width: '80px', padding: '0.375rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)' }}
+                                    />
+                                </label>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Snap to Grid</span>
+                                    <input
+                                        type="checkbox"
+                                        checked={settings.snapToGrid}
+                                        onChange={(e) => setSettings(prev => ({ ...prev, snapToGrid: e.target.checked }))}
+                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                    />
+                                </label>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Pan Sensitivity</span>
+                                    <input
+                                        type="range"
+                                        min="0.1"
+                                        max="2"
+                                        step="0.1"
+                                        value={settings.panSensitivity}
+                                        onChange={(e) => setSettings(prev => ({ ...prev, panSensitivity: parseFloat(e.target.value) }))}
+                                        style={{ width: '100px', cursor: 'pointer' }}
+                                    />
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.panSensitivity}x</span>
+                                </label>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Zoom Sensitivity</span>
+                                    <input
+                                        type="range"
+                                        min="0.5"
+                                        max="2"
+                                        step="0.1"
+                                        value={settings.zoomSensitivity}
+                                        onChange={(e) => setSettings(prev => ({ ...prev, zoomSensitivity: parseFloat(e.target.value) }))}
+                                        style={{ width: '100px', cursor: 'pointer' }}
+                                    />
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.zoomSensitivity}x</span>
+                                </label>
+                            </div>
                         </div>
 
-                        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            {/* Canvas Settings */}
-                            <div>
-                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Canvas</h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Show Grid</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={settings.showGrid}
-                                            onChange={(e) => setSettings(prev => ({ ...prev, showGrid: e.target.checked }))}
-                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                        />
-                                    </label>
-                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Grid Size</span>
-                                        <input
-                                            type="number"
-                                            value={settings.gridSize}
-                                            onChange={(e) => setSettings(prev => ({ ...prev, gridSize: parseInt(e.target.value) || 20 }))}
-                                            style={{ width: '80px', padding: '0.375rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)' }}
-                                        />
-                                    </label>
-                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Snap to Grid</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={settings.snapToGrid}
-                                            onChange={(e) => setSettings(prev => ({ ...prev, snapToGrid: e.target.checked }))}
-                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                        />
-                                    </label>
-                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Pan Sensitivity</span>
-                                        <input
-                                            type="range"
-                                            min="0.1"
-                                            max="2"
-                                            step="0.1"
-                                            value={settings.panSensitivity}
-                                            onChange={(e) => setSettings(prev => ({ ...prev, panSensitivity: parseFloat(e.target.value) }))}
-                                            style={{ width: '100px', cursor: 'pointer' }}
-                                        />
-                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.panSensitivity}x</span>
-                                    </label>
-                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Zoom Sensitivity</span>
-                                        <input
-                                            type="range"
-                                            min="0.5"
-                                            max="2"
-                                            step="0.1"
-                                            value={settings.zoomSensitivity}
-                                            onChange={(e) => setSettings(prev => ({ ...prev, zoomSensitivity: parseFloat(e.target.value) }))}
-                                            style={{ width: '100px', cursor: 'pointer' }}
-                                        />
-                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.zoomSensitivity}x</span>
-                                    </label>
-                                </div>
+
+
+                        {/* Display Settings */}
+                        <div>
+                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Display</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontSize: '0.875rem', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={showTelemetry}
+                                        onChange={(e) => setShowTelemetry(e.target.checked)}
+                                    />
+                                    Show Telemetry Dashboard
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontSize: '0.875rem', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={show3DMode}
+                                        onChange={(e) => setShow3DMode(e.target.checked)}
+                                    />
+                                    Enable 3D Altitude View
+                                </label>
                             </div>
+                        </div>
 
-
-
-                            {/* Display Settings */}
-                            <div>
-                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Display</h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontSize: '0.875rem', cursor: 'pointer' }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={showTelemetry}
-                                            onChange={(e) => setShowTelemetry(e.target.checked)}
-                                        />
-                                        Show Telemetry Dashboard
-                                    </label>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontSize: '0.875rem', cursor: 'pointer' }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={show3DMode}
-                                            onChange={(e) => setShow3DMode(e.target.checked)}
-                                        />
-                                        Enable 3D Altitude View
-                                    </label>
-                                </div>
+                        {/* Animation Settings */}
+                        <div>
+                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Animation</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Animation Duration (seconds)</span>
+                                    <input
+                                        type="number"
+                                        min="0.5"
+                                        max="10"
+                                        step="0.5"
+                                        value={settings.animationDuration}
+                                        onChange={(e) => setSettings(prev => ({ ...prev, animationDuration: parseFloat(e.target.value) || 2 }))}
+                                        style={{ width: '80px', padding: '0.375rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)' }}
+                                    />
+                                </label>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Path Smoothness</span>
+                                    <input
+                                        type="range"
+                                        min="1"
+                                        max="20"
+                                        step="1"
+                                        value={settings.pathSmoothness}
+                                        onChange={(e) => setSettings(prev => ({ ...prev, pathSmoothness: parseInt(e.target.value) }))}
+                                        style={{ width: '100px', cursor: 'pointer' }}
+                                    />
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.pathSmoothness}</span>
+                                </label>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Easing Function</span>
+                                    <select
+                                        value={settings.easing}
+                                        onChange={(e) => setSettings(prev => ({ ...prev, easing: e.target.value }))}
+                                        style={{ padding: '0.375rem 0.75rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                    >
+                                        <option value="linear">Linear</option>
+                                        <option value="easeInQuad">Ease In (Quad)</option>
+                                        <option value="easeOutQuad">Ease Out (Quad)</option>
+                                        <option value="easeInOutQuad">Ease In/Out (Quad)</option>
+                                        <option value="easeInOutCubic">Ease In/Out (Cubic)</option>
+                                    </select>
+                                </label>
                             </div>
+                        </div>
 
-                            {/* Animation Settings */}
-                            <div>
-                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Animation</h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Animation Duration (seconds)</span>
-                                        <input
-                                            type="number"
-                                            min="0.5"
-                                            max="10"
-                                            step="0.5"
-                                            value={settings.animationDuration}
-                                            onChange={(e) => setSettings(prev => ({ ...prev, animationDuration: parseFloat(e.target.value) || 2 }))}
-                                            style={{ width: '80px', padding: '0.375rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)' }}
-                                        />
-                                    </label>
-                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Path Smoothness</span>
-                                        <input
-                                            type="range"
-                                            min="1"
-                                            max="20"
-                                            step="1"
-                                            value={settings.pathSmoothness}
-                                            onChange={(e) => setSettings(prev => ({ ...prev, pathSmoothness: parseInt(e.target.value) }))}
-                                            style={{ width: '100px', cursor: 'pointer' }}
-                                        />
-                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', width: '30px' }}>{settings.pathSmoothness}</span>
-                                    </label>
-                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Easing Function</span>
-                                        <select
-                                            value={settings.easing}
-                                            onChange={(e) => setSettings(prev => ({ ...prev, easing: e.target.value }))}
-                                            style={{ padding: '0.375rem 0.75rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', cursor: 'pointer' }}
-                                        >
-                                            <option value="linear">Linear</option>
-                                            <option value="easeInQuad">Ease In (Quad)</option>
-                                            <option value="easeOutQuad">Ease Out (Quad)</option>
-                                            <option value="easeInOutQuad">Ease In/Out (Quad)</option>
-                                            <option value="easeInOutCubic">Ease In/Out (Cubic)</option>
-                                        </select>
-                                    </label>
-                                </div>
+                        {/* Objects Settings */}
+                        <div>
+                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Objects</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Default Drone Type</span>
+                                    <select
+                                        value={settings.defaultDroneType}
+                                        onChange={(e) => setSettings(prev => ({ ...prev, defaultDroneType: e.target.value }))}
+                                        style={{ padding: '0.375rem 0.75rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                    >
+                                        <option value="air">Air Drone</option>
+                                        <option value="ground">Ground Drone</option>
+                                    </select>
+                                </label>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Show Object Labels</span>
+                                    <input
+                                        type="checkbox"
+                                        checked={settings.showObjectLabels}
+                                        onChange={(e) => setSettings(prev => ({ ...prev, showObjectLabels: e.target.checked }))}
+                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                    />
+                                </label>
                             </div>
+                        </div>
 
-                            {/* Objects Settings */}
-                            <div>
-                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>Objects</h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Default Drone Type</span>
-                                        <select
-                                            value={settings.defaultDroneType}
-                                            onChange={(e) => setSettings(prev => ({ ...prev, defaultDroneType: e.target.value }))}
-                                            style={{ padding: '0.375rem 0.75rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', cursor: 'pointer' }}
-                                        >
-                                            <option value="air">Air Drone</option>
-                                            <option value="ground">Ground Drone</option>
-                                        </select>
-                                    </label>
-                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Show Object Labels</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={settings.showObjectLabels}
-                                            onChange={(e) => setSettings(prev => ({ ...prev, showObjectLabels: e.target.checked }))}
-                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                        />
-                                    </label>
-                                </div>
+                        {/* System Settings */}
+                        <div>
+                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>System</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Auto-Save to Browser</span>
+                                    <input
+                                        type="checkbox"
+                                        checked={settings.autoSave}
+                                        onChange={(e) => setSettings(prev => ({ ...prev, autoSave: e.target.checked }))}
+                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                    />
+                                </label>
                             </div>
+                        </div>
 
-                            {/* System Settings */}
-                            <div>
-                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-color)', marginBottom: '0.75rem' }}>System</h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.875rem' }}>Auto-Save to Browser</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={settings.autoSave}
-                                            onChange={(e) => setSettings(prev => ({ ...prev, autoSave: e.target.checked }))}
-                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                        />
-                                    </label>
-                                </div>
-                            </div>
+                        {/* Reset Button */}
+                        <button
+                            onClick={() => setSettings({
+                                gridSize: 20,
+                                snapToGrid: false,
+                                showGrid: true,
+                                animationDuration: 2,
+                                defaultDroneType: 'air',
+                                autoSave: false,
+                                panSensitivity: 0.5,
+                                zoomSensitivity: 1,
+                                showObjectLabels: true,
+                                pathSmoothness: 10,
+                                easing: 'linear'
+                            })}
+                            style={{
+                                padding: '0.75rem',
+                                background: 'var(--bg-tertiary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '8px',
+                                color: 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                fontSize: '0.875rem',
+                                fontWeight: 500,
+                                marginTop: '0.5rem'
+                            }}
+                        >
+                            Reset to Defaults
+                        </button>
+                        <button
+                            onClick={() => setShowSettings(false)}
+                            style={{
+                                padding: '0.75rem',
+                                background: 'var(--accent-color)',
+                                border: 'none',
+                                borderRadius: '8px',
+                                color: 'white',
+                                cursor: 'pointer',
+                                fontSize: '0.875rem',
+                                fontWeight: 500,
+                                marginTop: '0.5rem'
+                            }}
+                        >
+                            Save & Close
+                        </button>
 
-                            {/* Reset Button */}
-                            <button
-                                onClick={() => setSettings({
-                                    gridSize: 20,
-                                    snapToGrid: false,
-                                    showGrid: true,
-                                    animationDuration: 2,
-                                    defaultDroneType: 'air',
-                                    autoSave: false,
-                                    panSensitivity: 0.5,
-                                    zoomSensitivity: 1,
-                                    showObjectLabels: true,
-                                    pathSmoothness: 10,
-                                    easing: 'linear'
-                                })}
-                                style={{
-                                    padding: '0.75rem',
-                                    background: 'var(--bg-tertiary)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: '8px',
-                                    color: 'var(--text-secondary)',
-                                    cursor: 'pointer',
-                                    fontSize: '0.875rem',
-                                    fontWeight: 500,
-                                    marginTop: '0.5rem'
-                                }}
-                            >
-                                Reset to Defaults
-                            </button>
-                            <button
-                                onClick={() => setShowSettings(false)}
-                                style={{
-                                    padding: '0.75rem',
-                                    background: 'var(--accent-color)',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    color: 'white',
-                                    cursor: 'pointer',
-                                    fontSize: '0.875rem',
-                                    fontWeight: 500,
-                                    marginTop: '0.5rem'
-                                }}
-                            >
-                                Save & Close
-                            </button>
-
-                            <div style={{
-                                marginTop: '1.5rem',
-                                paddingTop: '1rem',
-                                borderTop: '1px solid var(--border-color)',
-                                textAlign: 'center',
-                                fontSize: '0.75rem',
-                                color: 'var(--text-secondary)'
-                            }}>
-                                Created by Mario Sumali
-                            </div>
+                        <div style={{
+                            marginTop: '1.5rem',
+                            paddingTop: '1rem',
+                            borderTop: '1px solid var(--border-color)',
+                            textAlign: 'center',
+                            fontSize: '0.75rem',
+                            color: 'var(--text-secondary)'
+                        }}>
+                            Created by Mario Sumali
                         </div>
                     </div>
                 </div>
-            )
-            }
+            </div>
+        )
+    }
 
-            {/* Keyboard Shortcuts Help Modal */}
-            {
-                showHelp && (
-                    <div style={{
-                        position: 'fixed',
-                        inset: 0,
-                        background: 'rgba(0, 0, 0, 0.6)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 1000
-                    }}>
-                        <div style={{
-                            background: 'var(--bg-secondary)',
-                            borderRadius: '16px',
-                            padding: '1.5rem',
-                            width: '500px',
-                            maxHeight: '80vh',
-                            overflow: 'auto',
-                            border: '1px solid var(--border-color)'
-                        }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Keyboard Shortcuts</h2>
-                                <button onClick={() => setShowHelp(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
-                                    <X size={20} />
-                                </button>
-                            </div>
-
-                            <div style={{ display: 'grid', gap: '0.5rem' }}>
-                                {[
-                                    ['Escape', 'Deselect / Cancel'],
-                                    ['Delete', 'Delete selected'],
-                                    ['Ctrl + A', 'Select all'],
-                                    ['Ctrl + C', 'Copy selected'],
-                                    ['Ctrl + V', 'Paste'],
-                                    ['Ctrl + D', 'Duplicate selected'],
-                                    ['Ctrl + Z', 'Undo'],
-                                    ['Ctrl + Y', 'Redo'],
-                                    ['Ctrl + G', 'Group selected'],
-                                    ['Enter', 'Finish drawing'],
-                                    ['Shift + Drag', 'Pan canvas'],
-                                    ['Scroll', 'Zoom in/out'],
-                                    ['?', 'Show this help']
-                                ].map(([key, desc]) => (
-                                    <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-tertiary)' }}>
-                                        <kbd style={{
-                                            padding: '0.25rem 0.5rem',
-                                            background: 'var(--bg-primary)',
-                                            borderRadius: '4px',
-                                            fontSize: '0.75rem',
-                                            fontFamily: 'monospace',
-                                            border: '1px solid var(--border-color)'
-                                        }}>{key}</kbd>
-                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{desc}</span>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <button
-                                onClick={() => setShowHelp(false)}
-                                style={{
-                                    width: '100%',
-                                    padding: '0.75rem',
-                                    background: 'var(--accent-color)',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    color: 'white',
-                                    cursor: 'pointer',
-                                    marginTop: '1rem',
-                                    fontWeight: 500
-                                }}
-                            >
-                                Got it!
-                            </button>
-                        </div>
+    {/* Keyboard Shortcuts Help Modal */ }
+    {
+        showHelp && (
+            <div style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0, 0, 0, 0.6)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000
+            }}>
+                <div style={{
+                    background: 'var(--bg-secondary)',
+                    borderRadius: '16px',
+                    padding: '1.5rem',
+                    width: '500px',
+                    maxHeight: '80vh',
+                    overflow: 'auto',
+                    border: '1px solid var(--border-color)'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Keyboard Shortcuts</h2>
+                        <button onClick={() => setShowHelp(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                            <X size={20} />
+                        </button>
                     </div>
-                )
-            }
-        </div >
-    );
+
+                    <div style={{ display: 'grid', gap: '0.5rem' }}>
+                        {[
+                            ['Escape', 'Deselect / Cancel'],
+                            ['Delete', 'Delete selected'],
+                            ['Ctrl + A', 'Select all'],
+                            ['Ctrl + C', 'Copy selected'],
+                            ['Ctrl + V', 'Paste'],
+                            ['Ctrl + D', 'Duplicate selected'],
+                            ['Ctrl + Z', 'Undo'],
+                            ['Ctrl + Y', 'Redo'],
+                            ['Ctrl + G', 'Group selected'],
+                            ['Enter', 'Finish drawing'],
+                            ['Shift + Drag', 'Pan canvas'],
+                            ['Scroll', 'Zoom in/out'],
+                            ['?', 'Show this help']
+                        ].map(([key, desc]) => (
+                            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-tertiary)' }}>
+                                <kbd style={{
+                                    padding: '0.25rem 0.5rem',
+                                    background: 'var(--bg-primary)',
+                                    borderRadius: '4px',
+                                    fontSize: '0.75rem',
+                                    fontFamily: 'monospace',
+                                    border: '1px solid var(--border-color)'
+                                }}>{key}</kbd>
+                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{desc}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <button
+                        onClick={() => setShowHelp(false)}
+                        style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            background: 'var(--accent-color)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            color: 'white',
+                            cursor: 'pointer',
+                            marginTop: '1rem',
+                            fontWeight: 500
+                        }}
+                    >
+                        Got it!
+                    </button>
+                </div>
+            </div>
+        )
+    }
+            </div >
+            );
 }
 
 export default App;
