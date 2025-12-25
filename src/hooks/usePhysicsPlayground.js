@@ -682,6 +682,9 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
             case 'restitution':
                 body.restitution = value;
                 break;
+            case 'position':
+                Matter.Body.setPosition(body, { x: value.x, y: value.y });
+                break;
             case 'angle':
                 Matter.Body.setAngle(body, value);
                 break;

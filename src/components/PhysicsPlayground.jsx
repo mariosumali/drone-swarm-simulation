@@ -729,8 +729,37 @@ export function PhysicsPlayground({ theme = 'dark' }) {
 
                             <div style={{ marginTop: '0.5rem', borderTop: '1px solid #2d2d3d', paddingTop: '0.5rem' }}>
                                 <div style={{ fontSize: '0.6rem', color: '#565f89', marginBottom: '0.3rem' }}>Position</div>
-                                <div style={{ fontSize: '0.6rem', color: '#a9b1d6' }}>
-                                    x: {bodyProps.position?.x?.toFixed(1)} | y: {bodyProps.position?.y?.toFixed(1)}
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                    <label style={{ fontSize: '0.55rem', color: '#7aa2f7' }}>X:</label>
+                                    <input
+                                        type="number"
+                                        value={bodyProps.position?.x?.toFixed(1) || 0}
+                                        onChange={(e) => handlePropertyChange('position', { x: parseFloat(e.target.value), y: bodyProps.position?.y || 0 })}
+                                        style={{
+                                            width: '60px',
+                                            padding: '0.2rem 0.3rem',
+                                            background: '#1a1b26',
+                                            border: '1px solid #2d2d3d',
+                                            borderRadius: '4px',
+                                            color: '#a9b1d6',
+                                            fontSize: '0.6rem'
+                                        }}
+                                    />
+                                    <label style={{ fontSize: '0.55rem', color: '#7aa2f7' }}>Y:</label>
+                                    <input
+                                        type="number"
+                                        value={bodyProps.position?.y?.toFixed(1) || 0}
+                                        onChange={(e) => handlePropertyChange('position', { x: bodyProps.position?.x || 0, y: parseFloat(e.target.value) })}
+                                        style={{
+                                            width: '60px',
+                                            padding: '0.2rem 0.3rem',
+                                            background: '#1a1b26',
+                                            border: '1px solid #2d2d3d',
+                                            borderRadius: '4px',
+                                            color: '#a9b1d6',
+                                            fontSize: '0.6rem'
+                                        }}
+                                    />
                                 </div>
                             </div>
 
@@ -743,8 +772,22 @@ export function PhysicsPlayground({ theme = 'dark' }) {
 
                             <div style={{ marginTop: '0.5rem' }}>
                                 <div style={{ fontSize: '0.6rem', color: '#565f89', marginBottom: '0.3rem' }}>Rotation</div>
-                                <div style={{ fontSize: '0.6rem', color: '#a9b1d6' }}>
-                                    Net: {(((bodyProps.angle || 0) * 180 / Math.PI) % 360).toFixed(1)}°
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                    <input
+                                        type="number"
+                                        value={(((bodyProps.angle || 0) * 180 / Math.PI) % 360).toFixed(1)}
+                                        onChange={(e) => handlePropertyChange('angle', parseFloat(e.target.value) * Math.PI / 180)}
+                                        style={{
+                                            width: '70px',
+                                            padding: '0.2rem 0.3rem',
+                                            background: '#1a1b26',
+                                            border: '1px solid #2d2d3d',
+                                            borderRadius: '4px',
+                                            color: '#a9b1d6',
+                                            fontSize: '0.6rem'
+                                        }}
+                                    />
+                                    <span style={{ fontSize: '0.55rem', color: '#7aa2f7' }}>°</span>
                                 </div>
                                 <div style={{ fontSize: '0.55rem', color: '#565f89', marginTop: '0.15rem' }}>
                                     Total: {((bodyProps.angle || 0) * 180 / Math.PI).toFixed(1)}°
