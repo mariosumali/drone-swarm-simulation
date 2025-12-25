@@ -17,6 +17,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "lucide-react": "^0.473.0",
     "matter-js": "^0.20.0",
+    "poly-decomp": "^0.3.0",
     "prop-types": "^15.8.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

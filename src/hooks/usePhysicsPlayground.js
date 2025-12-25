@@ -5,6 +5,10 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Matter from 'matter-js';
+import decomp from 'poly-decomp';
+
+// Configure Matter.js to use poly-decomp for concave shape decomposition (needed for stars)
+Matter.Common.setDecomp(decomp);
 
 export function usePhysicsPlayground(canvasRef, containerRef) {
     const engineRef = useRef(null);

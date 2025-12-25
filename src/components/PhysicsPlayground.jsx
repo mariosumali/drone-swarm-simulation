@@ -199,6 +199,25 @@ export function PhysicsPlayground({ theme = 'dark' }) {
         setDrawingMode(false);
     };
 
+    // Keyboard shortcuts for drawing mode (Enter to confirm, Escape to cancel)
+    useEffect(() => {
+        if (!drawingMode) return;
+
+        const handleKeyDown = (e) => {
+            if (e.key === 'Enter' && drawingPoints.length >= 3) {
+                addCustomObject(drawingPoints);
+                setDrawingPoints([]);
+                setDrawingMode(false);
+            } else if (e.key === 'Escape') {
+                setDrawingPoints([]);
+                setDrawingMode(false);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [drawingMode, drawingPoints, addCustomObject]);
+
     const handleAddFromMenu = (type) => {
         if (contextMenu) {
             addObject(type, contextMenu.x, contextMenu.y);
@@ -576,17 +595,17 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                             alignItems: 'center',
                             gap: '0.75rem'
                         }}>
-                            <span>Drawing Mode: Click to add points ({drawingPoints.length} points)</span>
+                            <span>Click to add points ({drawingPoints.length} points) {drawingPoints.length < 3 && '• Need 3+ points'}</span>
                             <button onClick={handleFinishDrawing} style={{
                                 padding: '0.25rem 0.5rem',
-                                background: '#9ece6a',
+                                background: drawingPoints.length >= 3 ? '#9ece6a' : '#565f89',
                                 border: 'none',
                                 borderRadius: '4px',
                                 color: '#fff',
                                 fontSize: '0.6rem',
-                                cursor: 'pointer'
-                            }}>
-                                Finish
+                                cursor: drawingPoints.length >= 3 ? 'pointer' : 'not-allowed'
+                            }} disabled={drawingPoints.length < 3}>
+                                ↵ Finish
                             </button>
                             <button onClick={handleCancelDrawing} style={{
                                 padding: '0.25rem 0.5rem',
@@ -597,7 +616,7 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                                 fontSize: '0.6rem',
                                 cursor: 'pointer'
                             }}>
-                                Cancel
+                                Esc Cancel
                             </button>
                         </div>
                     )
