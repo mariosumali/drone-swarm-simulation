@@ -108,6 +108,7 @@ export function PhysicsPlayground({ theme = 'dark' }) {
         bodyDefaults,
         isRunning,
         isPaused,
+        mouseStiffness,
         selectedBodyId,
         selectedBodyIds,
         showGrid,
@@ -126,6 +127,7 @@ export function PhysicsPlayground({ theme = 'dark' }) {
         clearSelection,
         toggleGrid,
         togglePause,
+        setMouseStiffness,
         getBodyProperties,
         updateBodyProperty,
         updateDroneBehavior,
@@ -398,6 +400,21 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                         Reset (0, 0)
                     </button>
                 </Section >
+
+                {/* Mouse Stiffness */}
+                <Section title="Mouse Physics" defaultOpen={false}>
+                    <SliderControl
+                        label="Stiffness"
+                        value={mouseStiffness}
+                        min={0.01}
+                        max={0.5}
+                        step={0.01}
+                        onChange={(v) => setMouseStiffness(v)}
+                    />
+                    <div style={{ fontSize: '0.55rem', color: '#565f89', marginTop: '0.25rem' }}>
+                        Lower = more rotation when grabbing edges
+                    </div>
+                </Section>
 
                 {/* Entities List */}
                 < Section title={`Entities (${objects.length})`} defaultOpen={true} >
@@ -727,7 +744,10 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                             <div style={{ marginTop: '0.5rem' }}>
                                 <div style={{ fontSize: '0.6rem', color: '#565f89', marginBottom: '0.3rem' }}>Rotation</div>
                                 <div style={{ fontSize: '0.6rem', color: '#a9b1d6' }}>
-                                    {((bodyProps.angle || 0) * 180 / Math.PI).toFixed(1)}°
+                                    Net: {(((bodyProps.angle || 0) * 180 / Math.PI) % 360).toFixed(1)}°
+                                </div>
+                                <div style={{ fontSize: '0.55rem', color: '#565f89', marginTop: '0.15rem' }}>
+                                    Total: {((bodyProps.angle || 0) * 180 / Math.PI).toFixed(1)}°
                                 </div>
                             </div>
 

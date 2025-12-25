@@ -19,6 +19,7 @@ export function usePhysicsPlayground(canvasRef, containerRef) {
     const [selectedBodyId, setSelectedBodyId] = useState(null);
     const [selectedBodyIds, setSelectedBodyIds] = useState(new Set()); // Multi-select
     const [showGrid, setShowGrid] = useState(false); // Toggleable grid
+    const [mouseStiffness, setMouseStiffnessState] = useState(0.05); // Mouse constraint stiffness
 
     // Render options (like Matter.js demo)
     const [renderOptions, setRenderOptions] = useState({
@@ -182,12 +183,19 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         Matter.Composite.add(engine.world, walls);
 
         // Create mouse constraint for dragging
+        // Lower stiffness allows torque-based rotation when grabbing objects at the edge
         const mouse = Matter.Mouse.create(render.canvas);
         const mouseConstraint = Matter.MouseConstraint.create(engine, {
             mouse: mouse,
             constraint: {
-                stiffness: 0.2,
-                render: { visible: true }
+                stiffness: 0.05,  // Lower stiffness allows more natural movement and rotation
+                damping: 0.1,    // Add some damping to prevent wild oscillations
+                angularStiffness: 0,  // Allow free rotation based on grab point offset
+                render: {
+                    visible: true,
+                    strokeStyle: '#22c55e',
+                    lineWidth: 2
+                }
             }
         });
         Matter.Composite.add(engine.world, mouseConstraint);
@@ -769,6 +777,14 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         }
     }, []);
 
+    // Set mouse constraint stiffness
+    const setMouseStiffness = useCallback((stiffness) => {
+        setMouseStiffnessState(stiffness);
+        if (mouseConstraintRef.current) {
+            mouseConstraintRef.current.constraint.stiffness = stiffness;
+        }
+    }, []);
+
     return {
         objects,
         drones,
@@ -777,6 +793,7 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         bodyDefaults,
         isRunning: isInitialized,
         isPaused,
+        mouseStiffness,
         selectedBodyId,
         selectedBodyIds,
         showGrid,
@@ -803,6 +820,7 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         pauseSimulation,
         resumeSimulation,
         togglePause,
+        setMouseStiffness,
         BEHAVIOR_TEMPLATES,
         engine: engineRef.current,
         render: renderRef.current
