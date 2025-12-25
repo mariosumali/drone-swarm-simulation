@@ -1880,132 +1880,144 @@ function App() {
             </header>
 
             <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                {playgroundMode ? (
+                {/* PhysicsPlayground - always mounted, hidden when not active to preserve state */}
+                <div style={{
+                    flex: 1,
+                    display: playgroundMode ? 'flex' : 'none',
+                    width: '100%',
+                    height: '100%'
+                }}>
                     <PhysicsPlayground theme={theme} />
-                ) : (
-                    <>
-                        {/* Fixed Library + Entities Panel on Left */}
-                        <LibraryPanel
-                            items={items}
-                            selectedIds={selectedIds}
-                            onSelect={setSelectedIds}
-                            onUpdateItem={updateItem}
-                            onDelete={(ids) => {
-                                setItems(prev => prev.filter(item => !ids.has(item.id)));
-                                setSelectedIds(new Set());
-                            }}
-                            currentStateId={currentStateId}
-                            showPathTracking={showPathTracking}
-                            onTogglePathTracking={() => setShowPathTracking(!showPathTracking)}
-                            showDronePaths={showDronePaths}
-                            onToggleDronePaths={() => setShowDronePaths(!showDronePaths)}
-                            showForceVectors={showForceVectors}
-                            onToggleForceVectors={() => setShowForceVectors(!showForceVectors)}
-                            show3DMode={show3DMode}
-                        />
+                </div>
 
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                            <div ref={playgroundContainerRef} style={{ flex: 1, position: 'relative' }}>
-                                <Sidebar
-                                    items={items}
-                                    selectedIds={selectedIds}
-                                    onUpdateItem={updateItem}
-                                    onDelete={deleteSelected}
-                                    states={states}
-                                    currentStateId={currentStateId}
-                                    onToggleItemInState={toggleItemInState}
-                                    isSimulating={isSimulating}
-                                    animationProgress={animationProgress}
-                                    onGenerateGroundFormation={generateGroundFormation}
-                                    onGenerateAirFormation={generateAirFormation}
-                                    onUnlockFormation={unlockFormation}
-                                    onStartPathDrawing={startPathDrawing}
-                                    onClearPath={clearTransitionPath}
-                                    onAutoDrawPath={autoDrawPath}
-                                    pathDrawingMode={pathDrawingMode}
-                                    isExpanded={isSidebarExpanded}
-                                    onToggleExpand={() => setIsSidebarExpanded(!isSidebarExpanded)}
-                                />
-                                {show3DMode ? (
-                                    <Playground3D
-                                        items={items}
-                                        selectedIds={selectedIds}
-                                        onSelectionChange={setSelectedIds}
-                                        currentStateId={currentStateId}
-                                        isSimulating={isSimulating}
-                                        animationProgress={animationProgress}
-                                        states={states}
-                                        showPathTracking={showPathTracking}
-                                        showDronePaths={showDronePaths}
-                                        settings={settings}
-                                        onUpdateItem={updateItem}
-                                        onAddItem={addItem}
-                                        onDeleteItem={(id) => {
-                                            setItems(prev => prev.filter(item => item.id !== id));
-                                            setSelectedIds(new Set());
-                                        }}
-                                        drawingMode={drawingMode}
-                                        onDrawingModeChange={setDrawingMode}
-                                        onFinishDrawing={finishDrawing}
-                                    />
-                                ) : (
-                                    <Playground
-                                        items={items}
-                                        onAddItem={addItem}
-                                        onUpdateItem={updateItem}
-                                        selectedIds={selectedIds}
-                                        onSelectionChange={setSelectedIds}
-                                        viewport={viewport}
-                                        onViewportChange={setViewport}
-                                        drawingMode={drawingMode}
-                                        onDrawingModeChange={setDrawingMode}
-                                        onFinishDrawing={finishDrawing}
-                                        currentStateId={currentStateId}
-                                        isSimulating={isSimulating}
-                                        animationProgress={animationProgress}
-                                        states={states}
-                                        showPathTracking={showPathTracking}
-                                        showDronePaths={showDronePaths}
-                                        showForceVectors={showForceVectors}
-                                        show3DMode={show3DMode}
-                                        pathDrawingMode={pathDrawingMode}
-                                        onPathDrawingModeChange={setPathDrawingMode}
-                                        onFinishPathDrawing={finishPathDrawing}
-                                        settings={settings}
-                                        containerRef={playgroundContainerRef}
-                                        onDeleteItem={(id) => {
-                                            setItems(prev => prev.filter(item => item.id !== id));
-                                            setSelectedIds(new Set());
-                                        }}
-                                        scrollZoomEnabled={scrollZoomEnabled}
-                                    />
-                                )}
+                {/* Animation Mode - always mounted, hidden when not active */}
+                <div style={{
+                    flex: 1,
+                    display: playgroundMode ? 'none' : 'flex',
+                    width: '100%',
+                    height: '100%'
+                }}>
+                    {/* Fixed Library + Entities Panel on Left */}
+                    <LibraryPanel
+                        items={items}
+                        selectedIds={selectedIds}
+                        onSelect={setSelectedIds}
+                        onUpdateItem={updateItem}
+                        onDelete={(ids) => {
+                            setItems(prev => prev.filter(item => !ids.has(item.id)));
+                            setSelectedIds(new Set());
+                        }}
+                        currentStateId={currentStateId}
+                        showPathTracking={showPathTracking}
+                        onTogglePathTracking={() => setShowPathTracking(!showPathTracking)}
+                        showDronePaths={showDronePaths}
+                        onToggleDronePaths={() => setShowDronePaths(!showDronePaths)}
+                        showForceVectors={showForceVectors}
+                        onToggleForceVectors={() => setShowForceVectors(!showForceVectors)}
+                        show3DMode={show3DMode}
+                    />
 
-                            </div>
-                            {showTelemetry && (
-                                <TelemetryDashboard
-                                    items={items}
-                                    currentStateId={currentStateId}
-                                    isSimulating={isSimulating}
-                                />
-                            )}
-                            <Timeline
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <div ref={playgroundContainerRef} style={{ flex: 1, position: 'relative' }}>
+                            <Sidebar
+                                items={items}
+                                selectedIds={selectedIds}
+                                onUpdateItem={updateItem}
+                                onDelete={deleteSelected}
                                 states={states}
                                 currentStateId={currentStateId}
-                                onStateChange={setCurrentStateId}
-                                onAddState={addState}
-                                onDeleteState={deleteState}
-                                onUpdateStateName={updateStateName}
+                                onToggleItemInState={toggleItemInState}
                                 isSimulating={isSimulating}
-                                onToggleSimulation={toggleSimulation}
-                                onStopSimulation={stopSimulation}
-                                playbackSpeed={playbackSpeed}
-                                onPlaybackSpeedChange={setPlaybackSpeed}
                                 animationProgress={animationProgress}
+                                onGenerateGroundFormation={generateGroundFormation}
+                                onGenerateAirFormation={generateAirFormation}
+                                onUnlockFormation={unlockFormation}
+                                onStartPathDrawing={startPathDrawing}
+                                onClearPath={clearTransitionPath}
+                                onAutoDrawPath={autoDrawPath}
+                                pathDrawingMode={pathDrawingMode}
+                                isExpanded={isSidebarExpanded}
+                                onToggleExpand={() => setIsSidebarExpanded(!isSidebarExpanded)}
                             />
+                            {show3DMode ? (
+                                <Playground3D
+                                    items={items}
+                                    selectedIds={selectedIds}
+                                    onSelectionChange={setSelectedIds}
+                                    currentStateId={currentStateId}
+                                    isSimulating={isSimulating}
+                                    animationProgress={animationProgress}
+                                    states={states}
+                                    showPathTracking={showPathTracking}
+                                    showDronePaths={showDronePaths}
+                                    settings={settings}
+                                    onUpdateItem={updateItem}
+                                    onAddItem={addItem}
+                                    onDeleteItem={(id) => {
+                                        setItems(prev => prev.filter(item => item.id !== id));
+                                        setSelectedIds(new Set());
+                                    }}
+                                    drawingMode={drawingMode}
+                                    onDrawingModeChange={setDrawingMode}
+                                    onFinishDrawing={finishDrawing}
+                                />
+                            ) : (
+                                <Playground
+                                    items={items}
+                                    onAddItem={addItem}
+                                    onUpdateItem={updateItem}
+                                    selectedIds={selectedIds}
+                                    onSelectionChange={setSelectedIds}
+                                    viewport={viewport}
+                                    onViewportChange={setViewport}
+                                    drawingMode={drawingMode}
+                                    onDrawingModeChange={setDrawingMode}
+                                    onFinishDrawing={finishDrawing}
+                                    currentStateId={currentStateId}
+                                    isSimulating={isSimulating}
+                                    animationProgress={animationProgress}
+                                    states={states}
+                                    showPathTracking={showPathTracking}
+                                    showDronePaths={showDronePaths}
+                                    showForceVectors={showForceVectors}
+                                    show3DMode={show3DMode}
+                                    pathDrawingMode={pathDrawingMode}
+                                    onPathDrawingModeChange={setPathDrawingMode}
+                                    onFinishPathDrawing={finishPathDrawing}
+                                    settings={settings}
+                                    containerRef={playgroundContainerRef}
+                                    onDeleteItem={(id) => {
+                                        setItems(prev => prev.filter(item => item.id !== id));
+                                        setSelectedIds(new Set());
+                                    }}
+                                    scrollZoomEnabled={scrollZoomEnabled}
+                                />
+                            )}
+
                         </div>
-                    </>
-                )}
+                        {showTelemetry && (
+                            <TelemetryDashboard
+                                items={items}
+                                currentStateId={currentStateId}
+                                isSimulating={isSimulating}
+                            />
+                        )}
+                        <Timeline
+                            states={states}
+                            currentStateId={currentStateId}
+                            onStateChange={setCurrentStateId}
+                            onAddState={addState}
+                            onDeleteState={deleteState}
+                            onUpdateStateName={updateStateName}
+                            isSimulating={isSimulating}
+                            onToggleSimulation={toggleSimulation}
+                            onStopSimulation={stopSimulation}
+                            playbackSpeed={playbackSpeed}
+                            onPlaybackSpeedChange={setPlaybackSpeed}
+                            animationProgress={animationProgress}
+                        />
+                    </div>
+                </div>
             </div>
 
             {/* Settings Modal */}
