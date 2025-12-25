@@ -429,7 +429,8 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
                 fillStyle: renderOptions.wireframes ? 'transparent' : color,
                 strokeStyle: color,
                 lineWidth: 2
-            }
+            },
+            label: type // Store the type as label for serialization
         };
 
         let body;
@@ -829,9 +830,9 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
     const captureSnapshot = useCallback(() => {
         if (!engineRef.current) return null;
         const bodies = Matter.Composite.allBodies(engineRef.current.world);
+        const nonStaticBodies = bodies.filter(b => !b.isStatic && b.label !== 'wall');
         const snapshot = {
-            bodies: bodies
-                .filter(b => !b.isStatic && b.label !== 'wall')
+            bodies: nonStaticBodies
                 .map(body => ({
                     id: body.id,
                     label: body.label,
