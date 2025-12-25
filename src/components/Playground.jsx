@@ -1460,24 +1460,26 @@ export function Playground({
                     )}
                 </div>
                 {/* End of world origin wrapper */}
-
-                {
-                    visibleItems.length === 0 && !drawingMode && (
-                        <div style={{
-                            position: 'absolute',
-                            top: '50%', left: '50%',
-                            transform: 'translate(-50%, -50%)',
-                            color: 'var(--text-secondary)',
-                            pointerEvents: 'none',
-                            textAlign: 'center'
-                        }}>
-                            <p>Drag items from the sidebar to start</p>
-                            <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Scroll to zoom • Drag to select • Shift+Drag to pan</p>
-                        </div>
-                    )
-                }
-
             </div>
+            {/* End of viewport transform wrapper */}
+
+            {/* Empty state message - positioned outside transform so it stays centered on screen */}
+            {
+                visibleItems.length === 0 && !drawingMode && (
+                    <div style={{
+                        position: 'absolute',
+                        top: '50%', left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        color: 'var(--text-secondary)',
+                        pointerEvents: 'none',
+                        textAlign: 'center',
+                        zIndex: 10
+                    }}>
+                        <p>Drag items from the sidebar to start</p>
+                        <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Scroll to zoom • Drag to select • Shift+Drag to pan</p>
+                    </div>
+                )
+            }
 
             {/* Right-click Context Menu */}
             {contextMenu && (

@@ -41,7 +41,9 @@ function App() {
     const [showForceVectors, setShowForceVectors] = useState(false);
     const [showTelemetry, setShowTelemetry] = useState(false);
     const [show3DMode, setShow3DMode] = useState(false); // 2D mode by default
-    const [playgroundMode, setPlaygroundMode] = useState(false); // Standalone physics playground
+    const [playgroundMode, setPlaygroundMode] = useState(true); // Playground mode is default
+    // State to save Animation mode data when switching to Playground
+    const [savedAnimationState, setSavedAnimationState] = useState(null);
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
     const [clipboard, setClipboard] = useState([]);
     const [theme, setTheme] = useState(() => {
@@ -126,8 +128,8 @@ function App() {
 
     // Center the viewport so (0,0) is in the center of the canvas (aligns 2D with 3D)
     useEffect(() => {
-        if (viewport.needsCenter) {
-            // Use a small timeout to ensure the container is mounted and has dimensions
+        if (viewport.needsCenter && !playgroundMode) {
+            // Use a longer timeout to ensure the container is fully mounted after mode switch
             const timer = setTimeout(() => {
                 if (playgroundContainerRef.current) {
                     const rect = playgroundContainerRef.current.getBoundingClientRect();
@@ -140,10 +142,10 @@ function App() {
                         }));
                     }
                 }
-            }, 50);
+            }, 150);
             return () => clearTimeout(timer);
         }
-    }, [viewport.needsCenter]);
+    }, [viewport.needsCenter, playgroundMode]);
 
     const handleToggleRecord = async () => {
         if (isRecording) {
@@ -1687,27 +1689,97 @@ function App() {
                         <Settings size={18} />
                     </button>
 
-                    {/* Playground Mode Toggle */}
-                    <button
-                        onClick={() => setPlaygroundMode(!playgroundMode)}
-                        style={{
-                            padding: '0.5rem 0.75rem',
-                            background: playgroundMode ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'var(--bg-tertiary)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '8px',
-                            color: playgroundMode ? 'white' : 'var(--text-primary)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            fontWeight: 600,
-                            fontSize: '12px',
-                            transition: 'all 0.2s'
-                        }}
-                        title={playgroundMode ? 'Exit Physics Playground' : 'Enter Physics Playground Mode'}
-                    >
-                        🎱 {playgroundMode ? 'Exit Playground' : 'Playground'}
-                    </button>
+                    {/* Mode Toggle: Playground (Physics) vs Animation */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.25rem 0.5rem',
+                        background: 'var(--bg-tertiary)',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)'
+                    }}>
+                        <span style={{
+                            fontSize: '0.7rem',
+                            color: 'var(--text-secondary)',
+                            fontWeight: 500,
+                            textTransform: 'uppercase'
+                        }}>Mode:</span>
+                        <button
+                            onClick={() => {
+                                if (playgroundMode) {
+                                    // Switching from Playground to Animation - trigger viewport re-centering
+                                    setPlaygroundMode(false);
+                                    // Need to re-center viewport after Animation mode container mounts
+                                    setTimeout(() => {
+                                        setViewport(prev => ({ ...prev, needsCenter: true }));
+                                    }, 100);
+                                } else {
+                                    // Switching from Animation to Playground - save current animation state
+                                    setSavedAnimationState({
+                                        items: JSON.parse(JSON.stringify(items)),
+                                        states: JSON.parse(JSON.stringify(states)),
+                                        currentStateId,
+                                        viewport: { ...viewport },
+                                        selectedIds: new Set(selectedIds)
+                                    });
+                                    setPlaygroundMode(true);
+                                }
+                            }}
+                            style={{
+                                padding: '0.4rem 0.75rem',
+                                background: playgroundMode ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                border: 'none',
+                                borderRadius: '6px',
+                                color: 'white',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontWeight: 600,
+                                fontSize: '12px',
+                                transition: 'all 0.2s',
+                                minWidth: '120px',
+                                justifyContent: 'center'
+                            }}
+                            title={playgroundMode ? 'Currently in Playground Mode (Physics Sandbox)' : 'Currently in Animation Mode (State-based)'}
+                        >
+                            {playgroundMode ? '🎱 Playground' : '🎬 Animation'}
+                        </button>
+                        <button
+                            onClick={() => {
+                                if (playgroundMode) {
+                                    setPlaygroundMode(false);
+                                    // Need to re-center viewport after Animation mode container mounts
+                                    setTimeout(() => {
+                                        setViewport(prev => ({ ...prev, needsCenter: true }));
+                                    }, 100);
+                                } else {
+                                    setSavedAnimationState({
+                                        items: JSON.parse(JSON.stringify(items)),
+                                        states: JSON.parse(JSON.stringify(states)),
+                                        currentStateId,
+                                        viewport: { ...viewport },
+                                        selectedIds: new Set(selectedIds)
+                                    });
+                                    setPlaygroundMode(true);
+                                }
+                            }}
+                            style={{
+                                padding: '0.3rem 0.5rem',
+                                background: 'var(--bg-primary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '4px',
+                                color: 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                fontSize: '0.65rem',
+                                fontWeight: 500
+                            }}
+                            title={playgroundMode ? 'Switch to Animation Mode' : 'Switch to Playground Mode'}
+                        >
+                            Switch to {playgroundMode ? 'Animation' : 'Playground'}
+                        </button>
+                    </div>
 
                     {/* 2D/3D Toggle - 3D Under Construction */}
                     <div style={{ position: 'relative' }}>

@@ -218,6 +218,7 @@ export function PhysicsPlayground({ theme = 'dark' }) {
         }
     };
 
+
     return (
         <div style={{ display: 'flex', height: '100%', width: '100%', background: '#1a1b26' }}>
 
@@ -230,6 +231,21 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                 flexDirection: 'column',
                 overflowY: 'auto'
             }}>
+                {/* Mode Indicator Header */}
+                <div style={{
+                    padding: '0.75rem',
+                    background: 'linear-gradient(135deg, #22c55e20, #16a34a20)',
+                    borderBottom: '1px solid #22c55e40',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                }}>
+                    <span style={{ fontSize: '1rem' }}>🎱</span>
+                    <div>
+                        <div style={{ fontSize: '0.75rem', color: '#22c55e', fontWeight: 600 }}>Playground Mode</div>
+                        <div style={{ fontSize: '0.6rem', color: '#565f89' }}>Physics Sandbox</div>
+                    </div>
+                </div>
                 <div style={{ padding: '0.75rem', borderBottom: '1px solid #2d2d3d' }}>
                     <div style={{ fontSize: '0.7rem', color: '#7aa2f7', marginBottom: '0.5rem' }}>World</div>
                     <div style={{ fontSize: '0.65rem', color: '#565f89' }}>Bodies: {objects.length}</div>
@@ -359,10 +375,10 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                     >
                         <Trash2 size={12} /> Clear All
                     </button>
-                </Section>
+                </Section >
 
                 {/* Gravity */}
-                <Section title="Gravity">
+                < Section title="Gravity" >
                     <SliderControl label="x" value={gravity.x} min={-1} max={1} step={0.1} onChange={(v) => updateGravity(v, gravity.y)} />
                     <SliderControl label="y" value={gravity.y} min={-1} max={1} step={0.1} onChange={(v) => updateGravity(gravity.x, v)} />
                     <button
@@ -381,53 +397,55 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                     >
                         Reset (0, 0)
                     </button>
-                </Section>
+                </Section >
 
                 {/* Entities List */}
-                <Section title={`Entities (${objects.length})`} defaultOpen={true}>
-                    {objects.length === 0 ? (
-                        <div style={{ fontSize: '0.6rem', color: '#565f89', textAlign: 'center', padding: '0.5rem' }}>
-                            No entities yet
-                        </div>
-                    ) : (
-                        <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                            {objects.map((obj, idx) => (
-                                <div
-                                    key={obj.id}
-                                    onClick={() => selectBody(obj.id)}
-                                    style={{
-                                        padding: '0.4rem 0.5rem',
-                                        marginBottom: '0.2rem',
-                                        background: selectedBodyId === obj.id ? '#3d3d5c' : '#1a1b26',
-                                        border: selectedBodyId === obj.id ? '1px solid #ff0' : '1px solid #2d2d3d',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        fontSize: '0.6rem',
-                                        color: selectedBodyId === obj.id ? '#ff0' : '#a9b1d6'
-                                    }}
-                                >
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                        {obj.type === 'circle' && <Circle size={10} />}
-                                        {obj.type === 'rectangle' && <Square size={10} />}
-                                        {obj.type === 'triangle' && <Triangle size={10} />}
-                                        {obj.type === 'hexagon' && <Hexagon size={10} />}
-                                        {obj.type === 'pentagon' && <Pentagon size={10} />}
-                                        {obj.type === 'star' && <Star size={10} />}
-                                        {obj.type === 'custom' && <Pencil size={10} />}
-                                        {obj.type.charAt(0).toUpperCase() + obj.type.slice(1)} {idx + 1}
-                                    </span>
-                                    <span style={{ color: '#565f89' }}>#{obj.id}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </Section>
+                < Section title={`Entities (${objects.length})`} defaultOpen={true} >
+                    {
+                        objects.length === 0 ? (
+                            <div style={{ fontSize: '0.6rem', color: '#565f89', textAlign: 'center', padding: '0.5rem' }}>
+                                No entities yet
+                            </div>
+                        ) : (
+                            <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                                {objects.map((obj, idx) => (
+                                    <div
+                                        key={obj.id}
+                                        onClick={() => selectBody(obj.id)}
+                                        style={{
+                                            padding: '0.4rem 0.5rem',
+                                            marginBottom: '0.2rem',
+                                            background: selectedBodyId === obj.id ? '#3d3d5c' : '#1a1b26',
+                                            border: selectedBodyId === obj.id ? '1px solid #ff0' : '1px solid #2d2d3d',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            fontSize: '0.6rem',
+                                            color: selectedBodyId === obj.id ? '#ff0' : '#a9b1d6'
+                                        }}
+                                    >
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                            {obj.type === 'circle' && <Circle size={10} />}
+                                            {obj.type === 'rectangle' && <Square size={10} />}
+                                            {obj.type === 'triangle' && <Triangle size={10} />}
+                                            {obj.type === 'hexagon' && <Hexagon size={10} />}
+                                            {obj.type === 'pentagon' && <Pentagon size={10} />}
+                                            {obj.type === 'star' && <Star size={10} />}
+                                            {obj.type === 'custom' && <Pencil size={10} />}
+                                            {obj.type.charAt(0).toUpperCase() + obj.type.slice(1)} {idx + 1}
+                                        </span>
+                                        <span style={{ color: '#565f89' }}>#{obj.id}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )
+                    }
+                </Section >
 
                 {/* Render Options */}
-                <Section title="Render" defaultOpen={false}>
+                < Section title="Render" defaultOpen={false} >
                     <ToggleControl label="showGrid" value={showGrid} onChange={toggleGrid} />
                     <ToggleControl label="wireframes" value={renderOptions.wireframes} onChange={(v) => setRenderOption('wireframes', v)} />
                     <ToggleControl label="showBounds" value={renderOptions.showBounds} onChange={(v) => setRenderOption('showBounds', v)} />
@@ -436,11 +454,11 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                     <ToggleControl label="showAxes" value={renderOptions.showAxes} onChange={(v) => setRenderOption('showAxes', v)} />
                     <ToggleControl label="showAngleIndicator" value={renderOptions.showAngleIndicator} onChange={(v) => setRenderOption('showAngleIndicator', v)} />
                     <ToggleControl label="showIds" value={renderOptions.showIds} onChange={(v) => setRenderOption('showIds', v)} />
-                </Section>
-            </div>
+                </Section >
+            </div >
 
             {/* Canvas Area */}
-            <div
+            < div
                 ref={containerRef}
                 onContextMenu={handleContextMenu}
                 onClick={handleCanvasClick}
@@ -454,7 +472,7 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                 }}
             >
                 {/* Status and Pause Button */}
-                <div style={{
+                < div style={{
                     position: 'absolute',
                     top: 8,
                     left: 8,
@@ -493,143 +511,151 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                         {isPaused ? <Play size={12} /> : <Pause size={12} />}
                         {isPaused ? 'Play' : 'Pause'}
                     </button>
-                </div>
+                </div >
 
                 {/* Grid Overlay */}
-                {showGrid && (
-                    <svg
-                        style={{
+                {
+                    showGrid && (
+                        <svg
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '100%',
+                                height: '100%',
+                                pointerEvents: 'none',
+                                zIndex: 5
+                            }}
+                        >
+                            <defs>
+                                <pattern id="smallGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+                                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
+                                </pattern>
+                                <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
+                                    <rect width="100" height="100" fill="url(#smallGrid)" />
+                                    <path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+                                </pattern>
+                            </defs>
+                            <rect width="100%" height="100%" fill="url(#grid)" />
+                        </svg>
+                    )
+                }
+
+                {/* Drawing mode indicator */}
+                {
+                    drawingMode && (
+                        <div style={{
+                            position: 'absolute',
+                            top: 8,
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            padding: '0.5rem 1rem',
+                            background: '#7aa2f7',
+                            borderRadius: '6px',
+                            color: '#fff',
+                            fontSize: '0.7rem',
+                            zIndex: 20,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem'
+                        }}>
+                            <span>Drawing Mode: Click to add points ({drawingPoints.length} points)</span>
+                            <button onClick={handleFinishDrawing} style={{
+                                padding: '0.25rem 0.5rem',
+                                background: '#9ece6a',
+                                border: 'none',
+                                borderRadius: '4px',
+                                color: '#fff',
+                                fontSize: '0.6rem',
+                                cursor: 'pointer'
+                            }}>
+                                Finish
+                            </button>
+                            <button onClick={handleCancelDrawing} style={{
+                                padding: '0.25rem 0.5rem',
+                                background: '#f7768e',
+                                border: 'none',
+                                borderRadius: '4px',
+                                color: '#fff',
+                                fontSize: '0.6rem',
+                                cursor: 'pointer'
+                            }}>
+                                Cancel
+                            </button>
+                        </div>
+                    )
+                }
+
+                {/* Drawing preview */}
+                {
+                    drawingMode && drawingPoints.length > 0 && (
+                        <svg style={{
                             position: 'absolute',
                             top: 0,
                             left: 0,
                             width: '100%',
                             height: '100%',
                             pointerEvents: 'none',
-                            zIndex: 5
-                        }}
-                    >
-                        <defs>
-                            <pattern id="smallGrid" width="20" height="20" patternUnits="userSpaceOnUse">
-                                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
-                            </pattern>
-                            <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
-                                <rect width="100" height="100" fill="url(#smallGrid)" />
-                                <path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
-                            </pattern>
-                        </defs>
-                        <rect width="100%" height="100%" fill="url(#grid)" />
-                    </svg>
-                )}
-
-                {/* Drawing mode indicator */}
-                {drawingMode && (
-                    <div style={{
-                        position: 'absolute',
-                        top: 8,
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        padding: '0.5rem 1rem',
-                        background: '#7aa2f7',
-                        borderRadius: '6px',
-                        color: '#fff',
-                        fontSize: '0.7rem',
-                        zIndex: 20,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.75rem'
-                    }}>
-                        <span>Drawing Mode: Click to add points ({drawingPoints.length} points)</span>
-                        <button onClick={handleFinishDrawing} style={{
-                            padding: '0.25rem 0.5rem',
-                            background: '#9ece6a',
-                            border: 'none',
-                            borderRadius: '4px',
-                            color: '#fff',
-                            fontSize: '0.6rem',
-                            cursor: 'pointer'
+                            zIndex: 15
                         }}>
-                            Finish
-                        </button>
-                        <button onClick={handleCancelDrawing} style={{
-                            padding: '0.25rem 0.5rem',
-                            background: '#f7768e',
-                            border: 'none',
-                            borderRadius: '4px',
-                            color: '#fff',
-                            fontSize: '0.6rem',
-                            cursor: 'pointer'
-                        }}>
-                            Cancel
-                        </button>
-                    </div>
-                )}
-
-                {/* Drawing preview */}
-                {drawingMode && drawingPoints.length > 0 && (
-                    <svg style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        pointerEvents: 'none',
-                        zIndex: 15
-                    }}>
-                        <polyline
-                            points={drawingPoints.map(p => `${p.x},${p.y}`).join(' ')}
-                            fill="none"
-                            stroke="#7aa2f7"
-                            strokeWidth="2"
-                            strokeDasharray="5,5"
-                        />
-                        {drawingPoints.map((p, i) => (
-                            <circle key={i} cx={p.x} cy={p.y} r="5" fill="#7aa2f7" />
-                        ))}
-                    </svg>
-                )}
+                            <polyline
+                                points={drawingPoints.map(p => `${p.x},${p.y}`).join(' ')}
+                                fill="none"
+                                stroke="#7aa2f7"
+                                strokeWidth="2"
+                                strokeDasharray="5,5"
+                            />
+                            {drawingPoints.map((p, i) => (
+                                <circle key={i} cx={p.x} cy={p.y} r="5" fill="#7aa2f7" />
+                            ))}
+                        </svg>
+                    )
+                }
 
                 {/* Context Menu */}
-                {contextMenu && (
-                    <div style={{
-                        position: 'absolute',
-                        left: contextMenu.x,
-                        top: contextMenu.y,
-                        background: '#1a1b26',
-                        border: '1px solid #2d2d3d',
-                        borderRadius: '6px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-                        zIndex: 100,
-                        minWidth: '100px'
-                    }}>
-                        <div style={{ padding: '0.3rem 0.5rem', fontSize: '0.55rem', color: '#565f89', borderBottom: '1px solid #2d2d3d' }}>
-                            ADD SHAPE
-                        </div>
-                        {shapeButtons.map(({ type, icon: Icon, label }) => (
-                            <div
-                                key={type}
-                                onClick={() => handleAddFromMenu(type)}
-                                style={{
-                                    padding: '0.4rem 0.5rem',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.4rem',
-                                    cursor: 'pointer',
-                                    fontSize: '0.7rem',
-                                    color: '#a9b1d6'
-                                }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = '#2d2d3d'}
-                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                            >
-                                <Icon size={12} />
-                                {label}
+                {
+                    contextMenu && (
+                        <div style={{
+                            position: 'absolute',
+                            left: contextMenu.x,
+                            top: contextMenu.y,
+                            background: '#1a1b26',
+                            border: '1px solid #2d2d3d',
+                            borderRadius: '6px',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                            zIndex: 100,
+                            minWidth: '100px'
+                        }}>
+                            <div style={{ padding: '0.3rem 0.5rem', fontSize: '0.55rem', color: '#565f89', borderBottom: '1px solid #2d2d3d' }}>
+                                ADD SHAPE
                             </div>
-                        ))}
-                    </div>
-                )}
-            </div>
+                            {shapeButtons.map(({ type, icon: Icon, label }) => (
+                                <div
+                                    key={type}
+                                    onClick={() => handleAddFromMenu(type)}
+                                    style={{
+                                        padding: '0.4rem 0.5rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.4rem',
+                                        cursor: 'pointer',
+                                        fontSize: '0.7rem',
+                                        color: '#a9b1d6'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#2d2d3d'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                >
+                                    <Icon size={12} />
+                                    {label}
+                                </div>
+                            ))}
+                        </div>
+                    )
+                }
+            </div >
 
             {/* Right Panel - Properties */}
-            <div style={{
+            < div style={{
                 width: '200px',
                 borderLeft: '1px solid #2d2d3d',
                 background: '#16161e',
@@ -822,7 +848,7 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                     <SliderControl label="restitution" value={bodyDefaults.restitution} min={0} max={1} step={0.01} onChange={(v) => setBodyDefault('restitution', v)} />
                     <ToggleControl label="isStatic" value={bodyDefaults.isStatic} onChange={(v) => setBodyDefault('isStatic', v)} />
                 </Section>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }
