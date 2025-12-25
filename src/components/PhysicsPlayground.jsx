@@ -115,6 +115,8 @@ export function PhysicsPlayground({ theme = 'dark' }) {
         selectedBodyId,
         selectedBodyIds,
         showGrid,
+        canUndo,
+        canRedo,
         addObject,
         addDrone,
         addCustomObject,
@@ -131,12 +133,52 @@ export function PhysicsPlayground({ theme = 'dark' }) {
         toggleGrid,
         togglePause,
         setMouseStiffness,
+        undo,
+        redo,
+        saveState,
+        loadState,
+        pushHistory,
         getBodyProperties,
         updateBodyProperty,
         updateDroneBehavior,
         getDroneInfo,
         BEHAVIOR_TEMPLATES
     } = usePhysicsPlayground(null, containerRef);
+
+    // File input ref for loading state
+    const fileInputRef = useRef(null);
+
+    // Keyboard shortcuts for undo/redo/save
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'z' && !e.shiftKey) {
+                    e.preventDefault();
+                    undo();
+                } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+                    e.preventDefault();
+                    redo();
+                } else if (e.key === 's') {
+                    e.preventDefault();
+                    saveState();
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [undo, redo, saveState]);
+
+    // Handle file load
+    const handleFileLoad = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            loadState(event.target.result);
+        };
+        reader.readAsText(file);
+        e.target.value = ''; // Reset input
+    };
 
     // Update properties panel when selection changes
     useEffect(() => {
@@ -234,6 +276,7 @@ export function PhysicsPlayground({ theme = 'dark' }) {
         if (!type || !containerRef.current) return;
         const rect = containerRef.current.getBoundingClientRect();
         addObject(type, e.clientX - rect.left, e.clientY - rect.top);
+        pushHistory();
     };
 
     const handlePropertyChange = (property, value) => {
@@ -270,6 +313,87 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                         <div style={{ fontSize: '0.6rem', color: '#565f89' }}>Physics Sandbox</div>
                     </div>
                 </div>
+
+                {/* Toolbar - Undo/Redo/Save/Load */}
+                <div style={{
+                    padding: '0.5rem 0.75rem',
+                    borderBottom: '1px solid #2d2d3d',
+                    display: 'flex',
+                    gap: '0.25rem',
+                    justifyContent: 'center'
+                }}>
+                    <button
+                        onClick={undo}
+                        disabled={!canUndo}
+                        title="Undo (Ctrl+Z)"
+                        style={{
+                            padding: '0.4rem 0.5rem',
+                            background: canUndo ? '#2d2d3d' : '#1a1b26',
+                            border: 'none',
+                            borderRadius: '4px',
+                            color: canUndo ? '#a9b1d6' : '#3d3d5c',
+                            cursor: canUndo ? 'pointer' : 'not-allowed',
+                            fontSize: '0.7rem'
+                        }}
+                    >
+                        ↶
+                    </button>
+                    <button
+                        onClick={redo}
+                        disabled={!canRedo}
+                        title="Redo (Ctrl+Y)"
+                        style={{
+                            padding: '0.4rem 0.5rem',
+                            background: canRedo ? '#2d2d3d' : '#1a1b26',
+                            border: 'none',
+                            borderRadius: '4px',
+                            color: canRedo ? '#a9b1d6' : '#3d3d5c',
+                            cursor: canRedo ? 'pointer' : 'not-allowed',
+                            fontSize: '0.7rem'
+                        }}
+                    >
+                        ↷
+                    </button>
+                    <div style={{ width: '1px', background: '#2d2d3d', margin: '0 0.25rem' }} />
+                    <button
+                        onClick={saveState}
+                        title="Save State (Ctrl+S)"
+                        style={{
+                            padding: '0.4rem 0.5rem',
+                            background: '#2d2d3d',
+                            border: 'none',
+                            borderRadius: '4px',
+                            color: '#a9b1d6',
+                            cursor: 'pointer',
+                            fontSize: '0.7rem'
+                        }}
+                    >
+                        💾
+                    </button>
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Load State"
+                        style={{
+                            padding: '0.4rem 0.5rem',
+                            background: '#2d2d3d',
+                            border: 'none',
+                            borderRadius: '4px',
+                            color: '#a9b1d6',
+                            cursor: 'pointer',
+                            fontSize: '0.7rem'
+                        }}
+                    >
+                        📂
+                    </button>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".json"
+                        onChange={handleFileLoad}
+                        style={{ display: 'none' }}
+                    />
+                </div>
+
                 <div style={{ padding: '0.75rem', borderBottom: '1px solid #2d2d3d' }}>
                     <div style={{ fontSize: '0.7rem', color: '#7aa2f7', marginBottom: '0.5rem' }}>World</div>
                     <div style={{ fontSize: '0.65rem', color: '#565f89' }}>Bodies: {objects.length}</div>
@@ -287,6 +411,7 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                                     if (containerRef.current) {
                                         const rect = containerRef.current.getBoundingClientRect();
                                         addObject(type, rect.width / 2, rect.height / 2);
+                                        pushHistory();
                                     }
                                 }}
                                 style={{
@@ -353,6 +478,7 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                                 if (containerRef.current) {
                                     const rect = containerRef.current.getBoundingClientRect();
                                     addObject('polygon', rect.width / 2, rect.height / 2, { sides: polygonSides });
+                                    pushHistory();
                                 }
                             }}
                             style={{

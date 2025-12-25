@@ -1,13 +1,12 @@
 /**
  * usePhysicsPlayground - React hook for 2D physics playground
- * Full-featured implementation with Matter.js inspector options
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Matter from 'matter-js';
 import decomp from 'poly-decomp';
 
-// Configure Matter.js to use poly-decomp for concave shape decomposition (needed for stars)
+
 Matter.Common.setDecomp(decomp);
 
 export function usePhysicsPlayground(canvasRef, containerRef) {
@@ -25,7 +24,14 @@ export function usePhysicsPlayground(canvasRef, containerRef) {
     const [showGrid, setShowGrid] = useState(false); // Toggleable grid
     const [mouseStiffness, setMouseStiffnessState] = useState(0.05); // Mouse constraint stiffness
 
-    // Render options (like Matter.js demo)
+    // History state for undo/redo
+    const [history, setHistory] = useState([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
+    const historyRef = useRef([]);
+    const historyIndexRef = useRef(-1);
+    const MAX_HISTORY = 50;
+
+
     const [renderOptions, setRenderOptions] = useState({
         wireframes: true,
         showDebug: false,
@@ -813,6 +819,175 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         }
     }, []);
 
+    // Keep refs in sync with state for use in callbacks
+    useEffect(() => {
+        historyRef.current = history;
+        historyIndexRef.current = historyIndex;
+    }, [history, historyIndex]);
+
+    // Capture snapshot of current physics state
+    const captureSnapshot = useCallback(() => {
+        if (!engineRef.current) return null;
+        const bodies = Matter.Composite.allBodies(engineRef.current.world);
+        const snapshot = {
+            bodies: bodies
+                .filter(b => !b.isStatic && b.label !== 'wall')
+                .map(body => ({
+                    id: body.id,
+                    label: body.label,
+                    position: { x: body.position.x, y: body.position.y },
+                    angle: body.angle,
+                    velocity: { x: body.velocity.x, y: body.velocity.y },
+                    angularVelocity: body.angularVelocity,
+                    vertices: body.vertices.map(v => ({ x: v.x, y: v.y })),
+                    isCircle: body.circleRadius !== undefined,
+                    circleRadius: body.circleRadius,
+                    density: body.density,
+                    friction: body.friction,
+                    frictionAir: body.frictionAir,
+                    restitution: body.restitution,
+                    render: {
+                        fillStyle: body.render.fillStyle,
+                        strokeStyle: body.render.strokeStyle,
+                        lineWidth: body.render.lineWidth
+                    }
+                })),
+            gravity: { x: gravity.x, y: gravity.y },
+            timestamp: Date.now()
+        };
+        return snapshot;
+    }, [gravity]);
+
+    // Restore physics state from snapshot
+    const restoreSnapshot = useCallback((snapshot) => {
+        if (!engineRef.current || !snapshot) return;
+
+        // Remove all non-static bodies
+        const bodies = Matter.Composite.allBodies(engineRef.current.world);
+        bodies.forEach(body => {
+            if (!body.isStatic) {
+                Matter.Composite.remove(engineRef.current.world, body);
+            }
+        });
+
+        // Recreate bodies from snapshot
+        const newObjects = [];
+        snapshot.bodies.forEach(data => {
+            let body;
+            if (data.isCircle && data.circleRadius) {
+                body = Matter.Bodies.circle(data.position.x, data.position.y, data.circleRadius, {
+                    density: data.density,
+                    friction: data.friction,
+                    frictionAir: data.frictionAir,
+                    restitution: data.restitution,
+                    render: data.render
+                });
+            } else {
+                // Recreate from vertices
+                const centroid = data.position;
+                const relativeVertices = data.vertices.map(v => ({
+                    x: v.x - centroid.x,
+                    y: v.y - centroid.y
+                }));
+                body = Matter.Bodies.fromVertices(centroid.x, centroid.y, [relativeVertices], {
+                    density: data.density,
+                    friction: data.friction,
+                    frictionAir: data.frictionAir,
+                    restitution: data.restitution,
+                    render: data.render
+                });
+            }
+            if (body) {
+                Matter.Body.setAngle(body, data.angle);
+                Matter.Body.setVelocity(body, data.velocity);
+                Matter.Body.setAngularVelocity(body, data.angularVelocity);
+                Matter.Composite.add(engineRef.current.world, body);
+                newObjects.push({ id: body.id, type: data.label, body });
+            }
+        });
+
+        setObjects(newObjects);
+        setGravity(snapshot.gravity);
+        if (engineRef.current) {
+            engineRef.current.gravity.x = snapshot.gravity.x;
+            engineRef.current.gravity.y = snapshot.gravity.y;
+        }
+    }, []);
+
+    // Push current state to history
+    const pushHistory = useCallback(() => {
+        const snapshot = captureSnapshot();
+        if (!snapshot) return;
+
+        setHistory(prev => {
+            // If we're not at the end, remove future states
+            const newHistory = prev.slice(0, historyIndexRef.current + 1);
+            newHistory.push(snapshot);
+            // Limit history size
+            if (newHistory.length > MAX_HISTORY) {
+                newHistory.shift();
+            }
+            return newHistory;
+        });
+        setHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1));
+    }, [captureSnapshot]);
+
+    // Undo last action
+    const undo = useCallback(() => {
+        if (historyIndexRef.current <= 0) return;
+        const newIndex = historyIndexRef.current - 1;
+        const snapshot = historyRef.current[newIndex];
+        if (snapshot) {
+            restoreSnapshot(snapshot);
+            setHistoryIndex(newIndex);
+        }
+    }, [restoreSnapshot]);
+
+    // Redo last undone action
+    const redo = useCallback(() => {
+        if (historyIndexRef.current >= historyRef.current.length - 1) return;
+        const newIndex = historyIndexRef.current + 1;
+        const snapshot = historyRef.current[newIndex];
+        if (snapshot) {
+            restoreSnapshot(snapshot);
+            setHistoryIndex(newIndex);
+        }
+    }, [restoreSnapshot]);
+
+    // Save current state to file
+    const saveState = useCallback(() => {
+        const snapshot = captureSnapshot();
+        if (!snapshot) return;
+
+        const dataStr = JSON.stringify(snapshot, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `playground-state-${Date.now()}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }, [captureSnapshot]);
+
+    // Load state from file data
+    const loadState = useCallback((jsonData) => {
+        try {
+            const snapshot = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+            restoreSnapshot(snapshot);
+            // Clear history after loading
+            setHistory([snapshot]);
+            setHistoryIndex(0);
+        } catch (e) {
+            console.error('Failed to load state:', e);
+        }
+    }, [restoreSnapshot]);
+
+    // Computed values for UI
+    const canUndo = historyIndex > 0;
+    const canRedo = historyIndex < history.length - 1;
+
     return {
         objects,
         drones,
@@ -825,6 +1000,8 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         selectedBodyId,
         selectedBodyIds,
         showGrid,
+        canUndo,
+        canRedo,
         addObject,
         addDrone,
         addCustomObject,
@@ -849,6 +1026,11 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         resumeSimulation,
         togglePause,
         setMouseStiffness,
+        undo,
+        redo,
+        saveState,
+        loadState,
+        pushHistory,
         BEHAVIOR_TEMPLATES,
         engine: engineRef.current,
         render: renderRef.current
