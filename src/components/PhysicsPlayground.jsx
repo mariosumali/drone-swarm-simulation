@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { usePhysicsPlayground } from '../hooks/usePhysicsPlayground';
-import { Square, Circle, Triangle, Hexagon, Star, Pentagon, Trash2, Plus, Pencil, Settings, ChevronDown, ChevronRight, X, Bot, Code2 } from 'lucide-react';
+import { Square, Circle, Triangle, Hexagon, Star, Pentagon, Trash2, Plus, Pencil, Settings, ChevronDown, ChevronRight, X, Bot, Code2, Pause, Play } from 'lucide-react';
 
 // Collapsible section component
 function Section({ title, defaultOpen = true, children }) {
@@ -107,6 +107,7 @@ export function PhysicsPlayground({ theme = 'dark' }) {
         renderOptions,
         bodyDefaults,
         isRunning,
+        isPaused,
         selectedBodyId,
         selectedBodyIds,
         showGrid,
@@ -124,6 +125,7 @@ export function PhysicsPlayground({ theme = 'dark' }) {
         toggleBodySelection,
         clearSelection,
         toggleGrid,
+        togglePause,
         getBodyProperties,
         updateBodyProperty,
         updateDroneBehavior,
@@ -451,20 +453,46 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                     cursor: drawingMode ? 'crosshair' : 'default'
                 }}
             >
-                {/* Status */}
+                {/* Status and Pause Button */}
                 <div style={{
                     position: 'absolute',
                     top: 8,
                     left: 8,
-                    padding: '0.25rem 0.5rem',
-                    background: 'rgba(0,0,0,0.5)',
-                    borderRadius: '4px',
-                    fontSize: '0.6rem',
-                    color: isRunning ? '#9ece6a' : '#f7768e',
-                    zIndex: 20,
-                    fontFamily: 'monospace'
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    zIndex: 20
                 }}>
-                    {isRunning ? '● Running' : '○ Stopped'}
+                    <div style={{
+                        padding: '0.25rem 0.5rem',
+                        background: 'rgba(0,0,0,0.5)',
+                        borderRadius: '4px',
+                        fontSize: '0.6rem',
+                        color: isPaused ? '#f7a825' : (isRunning ? '#9ece6a' : '#f7768e'),
+                        fontFamily: 'monospace'
+                    }}>
+                        {isPaused ? '⏸ Paused' : (isRunning ? '● Running' : '○ Stopped')}
+                    </div>
+                    <button
+                        onClick={togglePause}
+                        style={{
+                            padding: '0.35rem 0.5rem',
+                            background: isPaused ? '#9ece6a' : '#f7a825',
+                            border: 'none',
+                            borderRadius: '4px',
+                            color: '#000',
+                            fontSize: '0.6rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            fontWeight: 600
+                        }}
+                        title={isPaused ? 'Resume Simulation' : 'Pause Simulation'}
+                    >
+                        {isPaused ? <Play size={12} /> : <Pause size={12} />}
+                        {isPaused ? 'Play' : 'Pause'}
+                    </button>
                 </div>
 
                 {/* Grid Overlay */}

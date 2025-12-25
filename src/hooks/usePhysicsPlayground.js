@@ -15,6 +15,7 @@ export function usePhysicsPlayground(canvasRef, containerRef) {
     const [objects, setObjects] = useState([]);
     const [gravity, setGravity] = useState({ x: 0, y: 0 });
     const [isInitialized, setIsInitialized] = useState(false);
+    const [isPaused, setIsPaused] = useState(false);
     const [selectedBodyId, setSelectedBodyId] = useState(null);
     const [selectedBodyIds, setSelectedBodyIds] = useState(new Set()); // Multi-select
     const [showGrid, setShowGrid] = useState(false); // Toggleable grid
@@ -695,6 +696,31 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         setShowGrid(prev => !prev);
     }, []);
 
+    // Pause simulation
+    const pauseSimulation = useCallback(() => {
+        if (runnerRef.current && !isPaused) {
+            runnerRef.current.enabled = false;
+            setIsPaused(true);
+        }
+    }, [isPaused]);
+
+    // Resume simulation
+    const resumeSimulation = useCallback(() => {
+        if (runnerRef.current && isPaused) {
+            runnerRef.current.enabled = true;
+            setIsPaused(false);
+        }
+    }, [isPaused]);
+
+    // Toggle pause/resume
+    const togglePause = useCallback(() => {
+        if (isPaused) {
+            resumeSimulation();
+        } else {
+            pauseSimulation();
+        }
+    }, [isPaused, pauseSimulation, resumeSimulation]);
+
     // Multi-select: toggle a body in the selection set
     const toggleBodySelection = useCallback((id, addToSelection = false) => {
         if (addToSelection) {
@@ -750,6 +776,7 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         renderOptions,
         bodyDefaults,
         isRunning: isInitialized,
+        isPaused,
         selectedBodyId,
         selectedBodyIds,
         showGrid,
@@ -773,6 +800,9 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         selectBody,
         toggleBodySelection,
         clearSelection,
+        pauseSimulation,
+        resumeSimulation,
+        togglePause,
         BEHAVIOR_TEMPLATES,
         engine: engineRef.current,
         render: renderRef.current
