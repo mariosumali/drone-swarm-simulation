@@ -31,7 +31,7 @@ function Section({ title, defaultOpen = true, children }) {
 }
 
 // Slider with label
-function SliderControl({ label, value, min, max, step = 0.01, onChange }) {
+function SliderControl({ label, value, min, max, step = 0.01, onChange, hideValue = false }) {
     return (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
             <span style={{ fontSize: '0.65rem', color: '#a9b1d6' }}>{label}</span>
@@ -45,9 +45,11 @@ function SliderControl({ label, value, min, max, step = 0.01, onChange }) {
                     onChange={(e) => onChange(parseFloat(e.target.value))}
                     style={{ width: '80px', accentColor: '#7aa2f7' }}
                 />
-                <span style={{ fontSize: '0.6rem', color: '#565f89', width: '40px', textAlign: 'right' }}>
-                    {typeof value === 'number' ? value.toFixed(step < 0.01 ? 3 : 2) : value}
-                </span>
+                {!hideValue && (
+                    <span style={{ fontSize: '0.6rem', color: '#565f89', width: '40px', textAlign: 'right' }}>
+                        {typeof value === 'number' ? value.toFixed(step < 0.01 ? 3 : 2) : value}
+                    </span>
+                )}
             </div>
         </div>
     );
@@ -99,6 +101,7 @@ export function PhysicsPlayground({ theme = 'dark' }) {
     const [bodyProps, setBodyProps] = useState(null);
     const [showCodeEditor, setShowCodeEditor] = useState(false);
     const [editingCode, setEditingCode] = useState('');
+    const [polygonSides, setPolygonSides] = useState(7); // Default 7-sided polygon
 
     const {
         objects,
@@ -306,7 +309,6 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                         ))}
                     </div>
 
-                    {/* Custom drawing button */}
                     <button
                         onClick={() => setDrawingMode(true)}
                         style={{
@@ -327,6 +329,46 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                     >
                         <Pencil size={12} /> Draw Custom
                     </button>
+
+                    {/* N-sided polygon */}
+                    <div style={{
+                        marginTop: '0.75rem',
+                        padding: '0.5rem',
+                        background: '#1a1b26',
+                        borderRadius: '4px',
+                        border: '1px solid #2d2d3d'
+                    }}>
+                        <div style={{ fontSize: '0.6rem', color: '#7aa2f7', marginBottom: '0.4rem' }}>N-Sided Polygon</div>
+                        <SliderControl
+                            label="Sides"
+                            value={polygonSides}
+                            min={3}
+                            max={20}
+                            step={1}
+                            onChange={(v) => setPolygonSides(v)}
+                            hideValue
+                        />
+                        <button
+                            onClick={() => {
+                                if (containerRef.current) {
+                                    const rect = containerRef.current.getBoundingClientRect();
+                                    addObject('polygon', rect.width / 2, rect.height / 2, { sides: polygonSides });
+                                }
+                            }}
+                            style={{
+                                width: '100%',
+                                padding: '0.35rem',
+                                background: '#3d3d5c',
+                                border: 'none',
+                                borderRadius: '4px',
+                                color: '#a9b1d6',
+                                fontSize: '0.6rem',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Add {polygonSides}-gon
+                        </button>
+                    </div>
 
                     {/* Add Drone button */}
                     <button
