@@ -216,6 +216,27 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
             }
         });
 
+        // Keep body selected when drag starts
+        Matter.Events.on(mouseConstraint, 'startdrag', (event) => {
+            const body = event.body;
+            if (body && !body.isStatic) {
+                if (window._physicsPlaygroundSelectBody) {
+                    window._physicsPlaygroundSelectBody(body.id);
+                }
+            }
+        });
+
+        // Keep body selected after drag ends (when thrown)
+        Matter.Events.on(mouseConstraint, 'enddrag', (event) => {
+            const body = event.body;
+            if (body && !body.isStatic) {
+                // Keep it selected after release
+                if (window._physicsPlaygroundSelectBody) {
+                    window._physicsPlaygroundSelectBody(body.id);
+                }
+            }
+        });
+
         // Limit velocity to prevent objects from escaping
         const maxVelocity = 25;
         Matter.Events.on(engine, 'afterUpdate', () => {
@@ -573,7 +594,7 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
 
     // Select a body and highlight it
     const selectBody = useCallback((id) => {
-        setSelectedBodyId(prevId => prevId === id ? null : id);
+        setSelectedBodyId(id); // Always select, don't toggle
 
         // Highlight the body by temporarily changing its render style
         if (engineRef.current) {
