@@ -117,6 +117,22 @@ export function PhysicsPlayground({ theme = 'dark' }) {
         showGrid,
         canUndo,
         canRedo,
+        // Simulation controls
+        commRange,
+        setCommRange,
+        pathfindingAlgorithm,
+        setPathfindingAlgorithm,
+        targetPosition,
+        setTargetPosition,
+        targetObject,
+        setTargetObject,
+        simulationMode,
+        setSimulationMode,
+        droneAgents,
+        pathPlanner,
+        cagingFormation,
+        messageBus,
+        // Functions
         addObject,
         addDrone,
         addCustomObject,
@@ -200,6 +216,80 @@ export function PhysicsPlayground({ theme = 'dark' }) {
         return () => clearInterval(interval);
     }, [selectedBodyId, getBodyProperties]);
 
+    // Drone behavior execution loop - runs when simulation is active
+    useEffect(() => {
+        if (simulationMode === 'idle' || drones.length === 0) return;
+
+        const interval = setInterval(() => {
+            const deltaTime = 50; // ~20fps update rate
+
+            drones.forEach(drone => {
+                if (drone.agent) {
+                    // Execute custom behavior if set, otherwise use default caging/transport
+                    if (drone.agent.behaviorFunction) {
+                        drone.agent.update(deltaTime);
+                    } else if (simulationMode === 'caging' && targetObject) {
+                        // Default caging behavior
+                        executeCagingBehavior(drone.agent, targetObject, cagingFormation);
+                    } else if (simulationMode === 'transporting' && targetPosition) {
+                        // Default transport behavior
+                        executeTransportBehavior(drone.agent, targetPosition, cagingFormation);
+                    }
+                }
+            });
+        }, 50);
+
+        return () => clearInterval(interval);
+    }, [simulationMode, drones, targetObject, targetPosition, cagingFormation]);
+
+    // Default caging behavior function
+    const executeCagingBehavior = (agent, objectId, formation) => {
+        const sensed = agent.sense(300);
+        const target = sensed.objects.find(o => o.id === objectId);
+        if (!target) return;
+
+        // Calculate this drone's caging position
+        const droneCount = drones.length;
+        const droneIndex = drones.findIndex(d => d.agent?.id === agent.id);
+        if (droneIndex < 0) return;
+
+        const positions = formation.calculatePositions(
+            target.bounds,
+            target.position,
+            droneCount,
+            'circle'
+        );
+
+        if (droneIndex < positions.length) {
+            const targetPos = positions[droneIndex];
+            agent.moveToward(targetPos, 0.3);
+        }
+    };
+
+    // Default transport behavior - move formation toward target
+    const executeTransportBehavior = (agent, destination, formation) => {
+        // Drones push the object toward destination
+        const sensed = agent.sense(300);
+        const targetObj = sensed.objects.find(o => o.id === targetObject);
+        if (!targetObj) return;
+
+        // Calculate direction from object to destination
+        const dx = destination.x - targetObj.position.x;
+        const dy = destination.y - targetObj.position.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 20) return; // Arrived
+
+        // Move drone to push the object toward destination
+        const pushDir = { x: dx / dist, y: dy / dist };
+        const pushPos = {
+            x: targetObj.position.x - pushDir.x * 50, // Position behind object
+            y: targetObj.position.y - pushDir.y * 50
+        };
+
+        agent.moveToward(pushPos, 0.5);
+    };
+
     const shapeButtons = [
         { type: 'rectangle', icon: Square, label: 'Rect' },
         { type: 'circle', icon: Circle, label: 'Circle' },
@@ -228,6 +318,15 @@ export function PhysicsPlayground({ theme = 'dark' }) {
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
             setDrawingPoints(prev => [...prev, { x, y }]);
+            return;
+        }
+
+        // Alt+click to set target position for transport (when target object is selected)
+        if ((e.altKey || simulationMode === 'caging') && targetObject && containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            setTargetPosition({ x, y });
         }
     };
 
@@ -600,6 +699,180 @@ export function PhysicsPlayground({ theme = 'dark' }) {
                     />
                     <div style={{ fontSize: '0.55rem', color: '#565f89', marginTop: '0.25rem' }}>
                         Lower = more rotation when grabbing edges
+                    </div>
+                </Section>
+
+                {/* Simulation Controls */}
+                <Section title="🤖 Simulation" defaultOpen={true}>
+                    {/* Communication Range */}
+                    <div style={{ marginBottom: '0.75rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                            <span style={{ fontSize: '0.6rem', color: '#a9b1d6' }}>Comm Range</span>
+                            <span style={{ fontSize: '0.55rem', color: '#565f89' }}>
+                                {commRange === Infinity ? '∞' : `${commRange}px`}
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                            <input
+                                type="range"
+                                min="50"
+                                max="500"
+                                value={commRange === Infinity ? 500 : commRange}
+                                onChange={(e) => setCommRange(parseInt(e.target.value))}
+                                style={{ flex: 1 }}
+                            />
+                            <button
+                                onClick={() => setCommRange(commRange === Infinity ? 300 : Infinity)}
+                                style={{
+                                    padding: '0.2rem 0.4rem',
+                                    fontSize: '0.55rem',
+                                    background: commRange === Infinity ? '#7aa2f7' : '#2d2d3d',
+                                    color: commRange === Infinity ? '#1a1b26' : '#a9b1d6',
+                                    border: 'none',
+                                    borderRadius: '3px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                ∞
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Pathfinding Algorithm */}
+                    <div style={{ marginBottom: '0.75rem' }}>
+                        <div style={{ fontSize: '0.6rem', color: '#a9b1d6', marginBottom: '0.25rem' }}>
+                            Pathfinding
+                        </div>
+                        <select
+                            value={pathfindingAlgorithm}
+                            onChange={(e) => setPathfindingAlgorithm(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '0.3rem',
+                                background: '#1a1b26',
+                                color: '#a9b1d6',
+                                border: '1px solid #2d2d3d',
+                                borderRadius: '4px',
+                                fontSize: '0.6rem'
+                            }}
+                        >
+                            <option value="astar">A* (Grid-based)</option>
+                            <option value="rrt">RRT (Random Tree)</option>
+                            <option value="formation">Formation-aware</option>
+                        </select>
+                    </div>
+
+                    {/* Mission Controls */}
+                    <div style={{ marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '0.6rem', color: '#a9b1d6', marginBottom: '0.25rem' }}>
+                            Mission
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                            <button
+                                onClick={() => {
+                                    if (selectedBodyId && !drones.find(d => d.id === selectedBodyId)) {
+                                        setTargetObject(selectedBodyId);
+                                    }
+                                }}
+                                disabled={!selectedBodyId || drones.find(d => d.id === selectedBodyId)}
+                                style={{
+                                    flex: 1,
+                                    padding: '0.3rem',
+                                    fontSize: '0.55rem',
+                                    background: targetObject ? '#22c55e40' : '#2d2d3d',
+                                    color: '#a9b1d6',
+                                    border: targetObject ? '1px solid #22c55e' : '1px solid #2d2d3d',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    opacity: (!selectedBodyId || drones.find(d => d.id === selectedBodyId)) ? 0.5 : 1
+                                }}
+                            >
+                                {targetObject ? '✓ Target Set' : '🎯 Set Target'}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setTargetObject(null);
+                                    setTargetPosition(null);
+                                    setSimulationMode('idle');
+                                }}
+                                style={{
+                                    padding: '0.3rem 0.5rem',
+                                    fontSize: '0.55rem',
+                                    background: '#ef444420',
+                                    color: '#ef4444',
+                                    border: '1px solid #ef444440',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.25rem', marginTop: '0.25rem' }}>
+                            <button
+                                onClick={() => setSimulationMode('caging')}
+                                disabled={!targetObject || drones.length === 0}
+                                style={{
+                                    flex: 1,
+                                    padding: '0.3rem',
+                                    fontSize: '0.55rem',
+                                    background: simulationMode === 'caging' ? '#7aa2f740' : '#2d2d3d',
+                                    color: simulationMode === 'caging' ? '#7aa2f7' : '#a9b1d6',
+                                    border: simulationMode === 'caging' ? '1px solid #7aa2f7' : '1px solid #2d2d3d',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    opacity: (!targetObject || drones.length === 0) ? 0.5 : 1
+                                }}
+                            >
+                                ⭕ Cage
+                            </button>
+                            <button
+                                onClick={() => setSimulationMode('transporting')}
+                                disabled={simulationMode !== 'caging' || !targetPosition}
+                                style={{
+                                    flex: 1,
+                                    padding: '0.3rem',
+                                    fontSize: '0.55rem',
+                                    background: simulationMode === 'transporting' ? '#22c55e40' : '#2d2d3d',
+                                    color: simulationMode === 'transporting' ? '#22c55e' : '#a9b1d6',
+                                    border: simulationMode === 'transporting' ? '1px solid #22c55e' : '1px solid #2d2d3d',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    opacity: (simulationMode !== 'caging' || !targetPosition) ? 0.5 : 1
+                                }}
+                            >
+                                🚀 Transport
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Status */}
+                    <div style={{
+                        padding: '0.4rem',
+                        background: '#1a1b26',
+                        borderRadius: '4px',
+                        fontSize: '0.55rem'
+                    }}>
+                        <div style={{ color: '#565f89', marginBottom: '0.2rem' }}>Status</div>
+                        <div style={{ color: '#a9b1d6' }}>
+                            Mode: <span style={{
+                                color: simulationMode === 'idle' ? '#565f89' :
+                                    simulationMode === 'caging' ? '#7aa2f7' : '#22c55e'
+                            }}>{simulationMode}</span>
+                        </div>
+                        <div style={{ color: '#a9b1d6' }}>
+                            Drones: {drones.length} | Target: {targetObject ? '✓' : '—'}
+                        </div>
+                        {targetPosition && (
+                            <div style={{ color: '#a9b1d6' }}>
+                                Dest: ({Math.round(targetPosition.x)}, {Math.round(targetPosition.y)})
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Help text */}
+                    <div style={{ fontSize: '0.5rem', color: '#565f89', marginTop: '0.5rem' }}>
+                        Click canvas to set transport destination
                     </div>
                 </Section>
 

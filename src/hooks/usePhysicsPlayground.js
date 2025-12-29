@@ -1,12 +1,17 @@
 /**
  * usePhysicsPlayground - React hook for 2D physics playground
+ * Enhanced with multi-agent drone simulation capabilities
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Matter from 'matter-js';
 import decomp from 'poly-decomp';
+import DroneAgent from '../agents/DroneAgent.js';
+import { messageBus } from '../agents/MessageBus.js';
+import CagingFormation from '../algorithms/CagingFormation.js';
+import PathPlanner from '../algorithms/PathPlanner.js';
 
-
+// Configure Matter.js to use poly-decomp for concave shape decomposition
 Matter.Common.setDecomp(decomp);
 
 export function usePhysicsPlayground(canvasRef, containerRef) {
@@ -67,6 +72,20 @@ export function usePhysicsPlayground(canvasRef, containerRef) {
     // Drones with injectable behavior
     const [drones, setDrones] = useState([]);
     const dronesRef = useRef([]);
+
+    // DroneAgent instances for multi-agent simulation
+    const droneAgentsRef = useRef(new Map()); // id -> DroneAgent
+
+    // Simulation control state
+    const [commRange, setCommRange] = useState(300); // Communication range, Infinity for global
+    const [pathfindingAlgorithm, setPathfindingAlgorithm] = useState('astar'); // 'astar', 'rrt', 'formation'
+    const [targetPosition, setTargetPosition] = useState(null); // Transport destination
+    const [targetObject, setTargetObject] = useState(null); // Object to cage/transport
+    const [simulationMode, setSimulationMode] = useState('idle'); // 'idle', 'caging', 'transporting'
+
+    // Algorithm instances
+    const pathPlannerRef = useRef(new PathPlanner());
+    const cagingFormationRef = useRef(new CagingFormation());
 
     // Keep dronesRef in sync with drones state
     useEffect(() => {
@@ -500,7 +519,7 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
                 strokeStyle: droneColor,
                 lineWidth: 4  // Thick bright green border
             },
-            label: `drone_${Date.now()}`
+            label: 'drone' // Use consistent label for sensor classification
         });
 
         // Mark as drone for filtering
@@ -509,10 +528,28 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         if (body) {
             Matter.Composite.add(engineRef.current.world, body);
 
+            // Create DroneAgent for multi-agent capabilities
+            const agent = new DroneAgent(body, engineRef.current, {
+                team: options.team || 'default',
+                role: options.role || 'worker',
+                sensorRadius: options.sensorRadius || 200,
+                maxForce: options.maxForce || 0.005,
+                maxSpeed: options.maxSpeed || 5
+            });
+
+            // Store agent reference
+            droneAgentsRef.current.set(body.id, agent);
+
+            // Set behavior if provided as function
+            if (typeof code === 'function') {
+                agent.setBehavior(code);
+            }
+
             const droneData = {
                 id: body.id,
                 type: 'drone',
                 body,
+                agent,
                 behaviorCode: code,
                 color: droneColor
             };
@@ -1003,6 +1040,25 @@ this.applyForce(sepX * 0.0003 + cohX * 0.00005, sepY * 0.0003 + cohY * 0.00005);
         showGrid,
         canUndo,
         canRedo,
+        // Simulation controls
+        commRange,
+        setCommRange: (range) => {
+            setCommRange(range);
+            messageBus.setCommRange(range);
+        },
+        pathfindingAlgorithm,
+        setPathfindingAlgorithm,
+        targetPosition,
+        setTargetPosition,
+        targetObject,
+        setTargetObject,
+        simulationMode,
+        setSimulationMode,
+        droneAgents: droneAgentsRef.current,
+        pathPlanner: pathPlannerRef.current,
+        cagingFormation: cagingFormationRef.current,
+        messageBus,
+        // Functions
         addObject,
         addDrone,
         addCustomObject,
