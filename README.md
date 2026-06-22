@@ -1,134 +1,106 @@
-# Drone Swarm Simulation
+# Swarm Studio
 
-A multi-state drone swarm simulator for coordinated drone operations with formation control, 3D pathfinding, and obstacle avoidance.
+A unified drone-swarm simulator. One scene, two ways to drive it:
 
-**Created by Mario Sumali**
+- **Keyframe choreography** — pose objects and drones across keyframes and play smooth, eased, obstacle-aware transitions.
+- **Live decentralized swarm** — a real-time Matter.js physics world where each drone is an autonomous agent that *senses* its neighbours, *talks* over a range-limited comm mesh, and acts on local rules. Flocking, seeking, formation, caging and transport all emerge from those local behaviours.
 
-## Features
+Everything runs on a **single entity model** and renders in both **2D** and **3D**.
 
-### Simulation Engine
-- **Multi-State Management** - Create unlimited states with smooth interpolation
-- **Real-time Playback** - Animate transitions with adjustable speed and easing
-- **2D & 3D Views** - Interactive canvas with synchronized dual-view rendering
-
-### Drone System
-- **Ground Drones** - Perimeter formations around object boundaries
-- **Air Drones** - Surface coverage using Voronoi-based placement
-- **Formation Locking** - Drones maintain relative positions during object movement
-- **Visual Indicators** - Altitude badges, flying glow effects, formation status
-
-### Pathfinding
-- **2D A\* Algorithm** - Grid-based obstacle avoidance for ground navigation
-- **3D A\* Algorithm** - Volumetric pathfinding with rise-fly-descend patterns
-- **No-Fly Zones** - Block entire airspace above obstacles
-- **Auto Path Recalculation** - Paths update when objects or obstacles move
-
-### Object System
-- **Shape Types** - Rectangles, circles, custom polygons
-- **Custom Drawing** - Free-draw polygons with resize/scale support
-- **Obstacles** - Static objects that block drone paths
-- **Position Locking** - Prevent accidental movement
-
-## Technical Implementation
-
-### 3D Rendering (Three.js + React Three Fiber)
-Objects are rendered using extruded geometries from 2D paths. Custom shapes use `THREE.Shape` with `ExtrudeGeometry` for volumetric representation. The coordinate mapping converts 2D canvas (X,Y) to 3D space (X→X, Y→Z, altitude→Y).
-
-### Formation Algorithms
-
-**Ground Formations** - Drones distributed along object perimeter:
-- Circle: Equal angular spacing
-- Rectangle: Perimeter walking with uniform distribution
-- Custom: Path sampling with edge-length weighting
-
-**Air Formations** - Centroidal Voronoi Tessellation (CCVT):
-1. Sample uniform points within object polygon
-2. Initialize sites using farthest-point strategy
-3. Balanced assignment with capacity constraints
-4. Iterative centroid refinement for optimal coverage
-
-### Pathfinding System
-
-**2D Pathfinding** (`findPath`)
-- A\* search with 8-directional neighbor expansion
-- Collision detection for circles, rectangles, and custom polygons
-- Path simplification via line-of-sight pruning
-
-**3D Pathfinding** (`findPath3D`)
-- 26-directional neighbor expansion (includes vertical movement)
-- Height-aware collision: drones can fly over obstacles if altitude > obstacle height + margin
-- No-fly zones block entire airspace regardless of altitude
-- Fallback: rise-fly-descend trajectory if A\* exhausts iterations
-
-### Path Interpolation
-- Catmull-Rom spline smoothing for drawn paths
-- 3D coordinate interpolation along path segments
-- Easing functions: linear, quadratic, cubic
-
-## Quick Start
+**Created by Mario Sumali.**
 
 ```bash
 npm install
-npm run dev
+npm run dev      # http://localhost:5173
 ```
 
-Open `http://localhost:5173`
+---
 
-## Controls
+## Highlights
 
-| Action | Control |
-|--------|---------|
-| Move objects | Left click + drag |
-| Pan | Middle click / Space + drag |
-| Zoom | Mouse wheel |
-| Multi-select | Shift + click |
-| Delete | Delete / Backspace |
-| Undo/Redo | Ctrl+Z / Ctrl+Y |
-| Copy/Paste | Ctrl+C / Ctrl+V |
+- **One model, two engines.** Keyframe interpolation and live physics operate on the same entities — set up a formation, then either script it with keyframes or let the swarm run it live.
+- **Decentralized agents (for real).** Each drone has perception (proximity + raycast via `SensorSystem`), communication (`MessageBus`, range-limited broadcast/direct), and PID motor control (`DroneAgent`). The engine assigns a mission behaviour and steps perceive → communicate → control → physics every tick.
+- **Missions:** Hold · Flock (boids) · Seek · Disperse · Formation · Caging · Transport.
+- **Formations:** perimeter (circle/rect/polygon) for ground drones, area-covering CCVT (centroidal Voronoi) for air drones.
+- **Pathfinding:** binary-heap A\* (2D) with line-of-sight smoothing, and a layered 3D planner with rise-fly-descend + no-fly zones.
+- **Polished UI/UX:** a real token-based design system, light + dark themes, dense telemetry HUD, scene tree, inspector, drag-and-drop library, keyframe timeline with scrubber, marquee select, grouping, undo/redo, copy/paste, save/load, screen recording, and a full keyboard map.
+- **3D view** of the same scene (orbit/zoom), drones at altitude with comm tethers.
 
-## Usage
-
-1. **Add Objects** - Drag shapes from sidebar onto canvas
-2. **Add Drones** - Drag Air (✈️) or Ground (🚗) drones
-3. **Create States** - Click "New State", reposition objects
-4. **Generate Formations** - Select object → Enable Transport → Generate
-5. **Set Obstacles** - Mark objects as obstacles, optionally enable No-Fly Zone
-6. **Configure Paths** - Use "Auto" for pathfinding or "Draw" for custom routes
-7. **Simulate** - Press Play to animate between states
-
-## Object Options
-
-- 🔒 **Lock Position** - Prevent movement
-- 🚧 **Mark as Obstacle** - Static, blocks drone paths
-- 🚫 **No-Fly Zone** - Block drone flyover at any altitude
+---
 
 ## Architecture
 
 ```
 src/
-├── App.jsx                 # State management, simulation control
-├── components/
-│   ├── Playground.jsx      # 2D canvas with zoom/pan/selection
-│   ├── Playground3D.jsx    # 3D scene with Three.js
-│   ├── Object3D.jsx        # 3D shape rendering
-│   ├── Drone3D.jsx         # 3D drone visualization
-│   └── Sidebar.jsx         # Properties panel, entity list
-└── utils/
-    ├── formationCalculator.js  # CCVT, perimeter algorithms
-    ├── pathfinding.js          # 2D & 3D A* implementation
-    └── pathInterpolation.js    # Spline smoothing, 3D interpolation
+├── main.jsx                  # entry
+├── styles/                   # design system
+│   ├── tokens.css            #   color/space/type/shadow tokens (light + dark)
+│   ├── base.css              #   reset + base elements
+│   └── ui.css                #   reusable component classes
+├── app/                      # application layer
+│   ├── store.js              #   single external store (undo/redo, autosave)
+│   ├── useSimulation.js      #   keyframe RAF + live engine driver
+│   ├── missions.js           #   formation / pathing orchestration
+│   └── constants.js          #   arena, library catalog, mission list
+├── model/                    # the unified data model
+│   ├── entities.js           #   entity factory, obstacle/shape conversion
+│   └── selectors.js          #   derived reads (transform-at-time, obstacles)
+├── sim/                      # simulation core (framework-free, unit-tested)
+│   ├── geometry.js           #   shared geometric primitives
+│   ├── pathfinding.js        #   A* 2D + layered 3D            (+ .test.js)
+│   ├── formations.js         #   perimeter + CCVT formations   (+ .test.js)
+│   ├── interpolation.js      #   easing, path traversal, splines
+│   ├── physics.js            #   Matter.js world wrapper
+│   ├── behaviors.js          #   mission behaviours (boids, seek, slot-hold…)
+│   ├── engine.js             #   SwarmEngine orchestrator
+│   └── agents/               #   DroneAgent · MessageBus · SensorSystem
+└── ui/                       # React components (all on the design system)
+    ├── App.jsx · Toolbar · LibraryPanel · Inspector · Timeline · Telemetry …
+    └── canvas/Canvas2D.jsx · Canvas3D.jsx
 ```
 
-## Tech Stack
+### Coordinate model
+World space is `+x` right, `+y` down, `+z` up (altitude). Matter.js is planar; altitude is tracked kinematically by the engine. The 3D view maps world `(x, y)` + altitude `z` → three.js `(x, y-up, z)`.
 
-- **React** - UI framework
-- **Vite** - Build tool
-- **Three.js / React Three Fiber** - 3D rendering
-- **@react-three/drei** - 3D helpers and abstractions
+---
+
+## Usage
+
+1. **Drag** objects and drones from the left **Build** panel onto the canvas (or click a tile).
+2. Select an object → **Form up** / **Cage** to surround it with available drones.
+3. **Keyframe mode:** add keyframes, reposition things, press **Play**. Use **Auto-route** / **Draw** in the inspector for obstacle-aware paths.
+4. **Live swarm mode:** choose a **Mission** and press **Run** — drones sense, talk and move on their own. Watch the comm mesh and telemetry update live.
+5. Toggle **2D / 3D** and **light / dark** any time.
+
+### Keyboard
+
+| Action | Key |
+| --- | --- |
+| Select / Polygon tool | `V` / `P` |
+| Pan / Zoom | `Space`+drag / Scroll |
+| Add to selection | `Shift`+click |
+| Select all · Copy/Paste · Duplicate | `⌘/Ctrl`+`A` · `C`/`V` · `D` |
+| Group / Ungroup | `⌘/Ctrl`+`G` / `⌘/Ctrl`+`Shift`+`G` |
+| Undo / Redo | `⌘/Ctrl`+`Z` / `⌘/Ctrl`+`Shift`+`Z` |
+| Delete · Deselect/Cancel | `Delete` / `Esc` |
+| Play / Pause · Help | `Space` · `?` |
+
+---
+
+## Scripts
+
+```bash
+npm run dev          # dev server
+npm run build        # production build (vendor-split chunks)
+npm run preview      # preview the build
+npm test             # run the unit test suite (vitest)
+npm run lint         # eslint
+```
+
+## Tech stack
+
+React 19 · Vite · Three.js / React Three Fiber · Matter.js · Vitest · lucide-react.
 
 ## License
 
-MIT License
-
----
-**Mario Sumali** | 2025
+MIT — Mario Sumali, 2025–2026.
